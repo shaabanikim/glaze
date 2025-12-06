@@ -1,8 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Product, Recommendation } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const generateSystemInstruction = (products: Product[]) => `
 You are "GlowBot", a beauty consultant for the lipgloss brand "GLAZE". 
 Your goal is to recommend the best lipgloss shade from the provided product list based on the user's input (either a text description or an image analysis).
@@ -23,9 +21,12 @@ export const getRecommendation = async (
   imageBase64?: string
 ): Promise<Recommendation> => {
   try {
-    if (!process.env.API_KEY) {
-      throw new Error("API Key is missing.");
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      throw new Error("API Key is missing. Please set API_KEY in your environment variables.");
     }
+
+    const ai = new GoogleGenAI({ apiKey: apiKey });
 
     const parts: any[] = [];
     
@@ -70,6 +71,7 @@ export const getRecommendation = async (
 
   } catch (error) {
     console.error("Gemini API Error:", error);
-    throw new Error("Sorry, our beauty bot is touching up its makeup. Please try again!");
+    // Return a fallback or rethrow so the UI can handle it
+    throw error;
   }
 };

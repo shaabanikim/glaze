@@ -98,7 +98,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
         name: payload.name,
         email: payload.email,
         avatar: payload.picture,
-        isAdmin: false // Real users start as non-admin
+        isAdmin: false, // Real users start as non-admin
+        isVerified: true
       };
       onLogin(newUser);
       onClose();
@@ -138,7 +139,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
                         email,
                         password,
                         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=fce7f3&color=db2777&bold=true`,
-                        isAdmin: false
+                        isAdmin: false,
+                        isVerified: true
                     };
                     
                     // Save to "DB"
@@ -214,7 +216,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
             name: 'Demo Admin',
             email: 'admin@glaze.com',
             avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop',
-            isAdmin: true
+            isAdmin: true,
+            isVerified: true
         };
         onLogin(mockUser);
         onClose();

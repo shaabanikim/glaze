@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Mail, Lock, ArrowRight, AlertCircle, Settings, User as UserIcon, KeyRound, CheckCircle, ExternalLink } from 'lucide-react';
 import { User } from '../types';
+import emailjs from '@emailjs/browser';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -117,7 +118,36 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
 
   if (!isOpen) return null;
 
-  const handleAuthSubmit = (e: React.FormEvent) => {
+  const sendVerificationEmail = async (userEmail: string, userName: string, code: string) => {
+      const serviceId = localStorage.getItem('GLAZE_EMAIL_SERVICE_ID');
+      const templateId = localStorage.getItem('GLAZE_EMAIL_TEMPLATE_ID');
+      const publicKey = localStorage.getItem('GLAZE_EMAIL_PUBLIC_KEY');
+
+      // If keys are configured, send real email
+      if (serviceId && templateId && publicKey) {
+          try {
+              await emailjs.send(serviceId, templateId, {
+                  to_name: userName,
+                  to_email: userEmail,
+                  otp: code,
+              }, publicKey);
+              return true;
+          } catch (error) {
+              console.error('EmailJS Error:', error);
+              setAuthError('Failed to send email. Please check your internet or Admin configuration.');
+              return false;
+          }
+      } else {
+          // Fallback to simulation if no keys
+          console.warn('EmailJS keys missing. Simulating email.');
+          setTimeout(() => {
+            alert(`[DEMO EMAIL SERVER]\n\nTo: ${userEmail}\nFrom: Glaze Cosmetics\nSubject: Verify your account\n\nYour verification code is: ${code}`);
+          }, 500);
+          return true;
+      }
+  };
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
 
@@ -129,7 +159,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
         }
 
         setIsLoading(true);
-        // Simulate network delay
+        // Simulate network delay for verification
         setTimeout(() => {
             if (otp === generatedOtp) {
                 try {
@@ -168,44 +198,47 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      try {
-          const users = JSON.parse(localStorage.getItem('GLAZE_USERS') || '{}');
-          
-          if (isSignUp) {
-             if (users[email]) {
-                 setAuthError('An account with this email already exists.');
-                 setIsLoading(false);
-                 return;
-             }
+    try {
+        const users = JSON.parse(localStorage.getItem('GLAZE_USERS') || '{}');
+        
+        if (isSignUp) {
+            if (users[email]) {
+                setAuthError('An account with this email already exists.');
+                setIsLoading(false);
+                return;
+            }
 
-             // Generate OTP for Verification
-             const code = Math.floor(100000 + Math.random() * 900000).toString();
-             setGeneratedOtp(code);
-             setVerificationStep(true);
-             
-             // SIMULATE EMAIL SENDING
-             setTimeout(() => {
-                 alert(`[DEMO EMAIL SERVER]\n\nTo: ${email}\nFrom: Glaze Cosmetics\nSubject: Verify your account\n\nYour verification code is: ${code}`);
-             }, 500);
+            // Generate OTP for Verification
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            setGeneratedOtp(code);
+            
+            // SEND EMAIL (Real or Mock)
+            const sent = await sendVerificationEmail(email, name, code);
+            
+            if (sent) {
+                setVerificationStep(true);
+            }
+            setIsLoading(false);
 
-          } else {
-             // LOGIN LOGIC
-             const user = users[email];
-             
-             if (user && user.password === password) {
-                 const { password: _, ...userProfile } = user;
-                 onLogin(userProfile);
-                 onClose();
-             } else {
-                 setAuthError('Invalid email or password.');
-             }
-          }
-      } catch (err) {
-          setAuthError('Something went wrong. Please try again.');
-      }
-      setIsLoading(false);
-    }, 1000);
+        } else {
+            // LOGIN LOGIC (Simulated delay)
+            setTimeout(() => {
+                const user = users[email];
+                
+                if (user && user.password === password) {
+                    const { password: _, ...userProfile } = user;
+                    onLogin(userProfile);
+                    onClose();
+                } else {
+                    setAuthError('Invalid email or password.');
+                }
+                setIsLoading(false);
+            }, 800);
+        }
+    } catch (err) {
+        setAuthError('Something went wrong. Please try again.');
+        setIsLoading(false);
+    }
   };
 
   // Quick Demo Admin Login
@@ -224,10 +257,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
       }, 800);
   };
 
-  const handleResendCode = () => {
+  const handleResendCode = async () => {
      const code = Math.floor(100000 + Math.random() * 900000).toString();
      setGeneratedOtp(code);
-     alert(`[DEMO EMAIL SERVER]\n\n(Resent) Your verification code is: ${code}`);
+     await sendVerificationEmail(email, name, code);
   };
 
   return (

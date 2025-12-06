@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle, Mail } from 'lucide-react';
 import { Product } from '../types';
 
 interface AdminDashboardProps {
@@ -23,6 +23,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Settings State
   const [settingsApiKey, setSettingsApiKey] = useState('');
   const [settingsClientId, setSettingsClientId] = useState('');
+  
+  // EmailJS Settings
+  const [emailServiceId, setEmailServiceId] = useState('');
+  const [emailTemplateId, setEmailTemplateId] = useState('');
+  const [emailPublicKey, setEmailPublicKey] = useState('');
+
   const [showSaveMessage, setShowSaveMessage] = useState(false);
   const [copiedOrigin, setCopiedOrigin] = useState(false);
 
@@ -32,6 +38,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // Load existing keys from storage or env on mount
     setSettingsApiKey(localStorage.getItem('GLAZE_API_KEY') || process.env.API_KEY || '');
     setSettingsClientId(localStorage.getItem('GLAZE_GOOGLE_CLIENT_ID') || process.env.GOOGLE_CLIENT_ID || '');
+    
+    // Load EmailJS
+    setEmailServiceId(localStorage.getItem('GLAZE_EMAIL_SERVICE_ID') || '');
+    setEmailTemplateId(localStorage.getItem('GLAZE_EMAIL_TEMPLATE_ID') || '');
+    setEmailPublicKey(localStorage.getItem('GLAZE_EMAIL_PUBLIC_KEY') || '');
   }, []);
 
   const handleEdit = (product: Product) => {
@@ -79,6 +90,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     e.preventDefault();
     localStorage.setItem('GLAZE_API_KEY', settingsApiKey);
     localStorage.setItem('GLAZE_GOOGLE_CLIENT_ID', settingsClientId);
+    
+    // Save EmailJS
+    localStorage.setItem('GLAZE_EMAIL_SERVICE_ID', emailServiceId);
+    localStorage.setItem('GLAZE_EMAIL_TEMPLATE_ID', emailTemplateId);
+    localStorage.setItem('GLAZE_EMAIL_PUBLIC_KEY', emailPublicKey);
     
     setShowSaveMessage(true);
     setTimeout(() => setShowSaveMessage(false), 3000);
@@ -436,6 +452,51 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       />
                     </div>
                     <p className="mt-1.5 text-xs text-gray-500">Enables the "Sign in with Google" button.</p>
+                  </div>
+
+                  {/* EMAILJS CONFIGURATION */}
+                  <div className="border-t border-gray-200 pt-6 mt-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Mail className="w-5 h-5 text-gray-400" />
+                      <h3 className="text-md font-bold text-gray-900">Email Verification Settings (EmailJS)</h3>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-4">
+                      Create an account at <a href="https://www.emailjs.com/" target="_blank" rel="noreferrer" className="text-blue-600 underline">EmailJS.com</a> to send real verification codes.
+                      <br/>Template variables: <code>{'{{to_name}}'}</code> and <code>{'{{otp}}'}</code>.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Service ID</label>
+                        <input
+                          type="text"
+                          value={emailServiceId}
+                          onChange={(e) => setEmailServiceId(e.target.value)}
+                          placeholder="service_xxxxx"
+                          className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-2.5 border text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Template ID</label>
+                        <input
+                          type="text"
+                          value={emailTemplateId}
+                          onChange={(e) => setEmailTemplateId(e.target.value)}
+                          placeholder="template_xxxxx"
+                          className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-2.5 border text-xs font-mono"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Public Key</label>
+                        <input
+                          type="password"
+                          value={emailPublicKey}
+                          onChange={(e) => setEmailPublicKey(e.target.value)}
+                          placeholder="Public Key (not Private Key)"
+                          className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-2.5 border text-xs font-mono"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="pt-4 flex items-center justify-between">

@@ -63,15 +63,8 @@ const App: React.FC = () => {
   };
 
   // Auth Handlers
-  const handleLogin = () => {
-    // Simulated successful login - Make this user an ADMIN for demo purposes
-    const mockUser: User = {
-      name: 'Sofia Rivera',
-      email: 'sofia.rivera@example.com',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop',
-      isAdmin: true 
-    };
-    setUser(mockUser);
+  const handleLogin = (userData: User) => {
+    setUser(userData);
     setIsLoginModalOpen(false);
   };
 

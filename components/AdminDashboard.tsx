@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe } from 'lucide-react';
 import { Product } from '../types';
 
 interface AdminDashboardProps {
@@ -17,9 +17,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onDelete, 
   onClose 
 }) => {
-  const [view, setView] = useState<'list' | 'form'>('list');
+  const [view, setView] = useState<'list' | 'form' | 'settings'>('list');
   const [editingProduct, setEditingProduct] = useState<Partial<Product>>({});
+  
+  // Settings State
+  const [settingsApiKey, setSettingsApiKey] = useState('');
+  const [settingsClientId, setSettingsClientId] = useState('');
+  const [showSaveMessage, setShowSaveMessage] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Load existing keys from storage or env on mount
+    setSettingsApiKey(localStorage.getItem('GLAZE_API_KEY') || process.env.API_KEY || '');
+    setSettingsClientId(localStorage.getItem('GLAZE_GOOGLE_CLIENT_ID') || process.env.GOOGLE_CLIENT_ID || '');
+  }, []);
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
@@ -62,6 +74,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setView('list');
   };
 
+  const handleSaveSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem('GLAZE_API_KEY', settingsApiKey);
+    localStorage.setItem('GLAZE_GOOGLE_CLIENT_ID', settingsClientId);
+    
+    setShowSaveMessage(true);
+    setTimeout(() => setShowSaveMessage(false), 3000);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 pt-20 pb-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
@@ -69,7 +90,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center">
-            {view === 'form' && (
+            {view !== 'list' && (
               <button 
                 onClick={() => setView('list')}
                 className="mr-4 p-2 rounded-full hover:bg-gray-200 transition-colors"
@@ -79,16 +100,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
             <div>
               <h1 className="text-3xl font-serif font-bold text-gray-900">
-                {view === 'list' ? 'Product Dashboard' : editingProduct.name || 'New Product'}
+                {view === 'list' ? 'Product Dashboard' : view === 'settings' ? 'Site Settings' : editingProduct.name || 'New Product'}
               </h1>
               <p className="text-sm text-gray-500 mt-1">
-                {view === 'list' ? 'Manage your inventory and shades' : 'Enter product details below'}
+                {view === 'list' ? 'Manage your inventory and shades' : view === 'settings' ? 'Configure API keys and integrations' : 'Enter product details below'}
               </p>
             </div>
           </div>
           
           {view === 'list' ? (
             <div className="flex gap-3">
+              <button
+                onClick={() => setView('settings')}
+                className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                <Settings className="w-4 h-4 mr-2" /> Settings
+              </button>
               <button
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -108,12 +135,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 onClick={() => setView('list')}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                Cancel
+                Back to List
               </button>
           )}
         </div>
 
-        {view === 'list' ? (
+        {view === 'list' && (
           /* List View */
           <div className="bg-white shadow-sm rounded-xl overflow-hidden border border-gray-200">
             <div className="overflow-x-auto">
@@ -169,7 +196,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </table>
             </div>
           </div>
-        ) : (
+        )}
+
+        {view === 'form' && (
           /* Form View */
           <form onSubmit={handleSubmit} className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
@@ -291,6 +320,81 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
           </form>
+        )}
+
+        {view === 'settings' && (
+          <div className="max-w-2xl mx-auto">
+             <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 p-8">
+                <div className="flex items-center gap-3 mb-6 pb-6 border-b border-gray-100">
+                  <div className="p-3 bg-pink-50 rounded-full">
+                    <Settings className="w-6 h-6 text-pink-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Site Configuration</h2>
+                    <p className="text-sm text-gray-500">Manage your API keys without redeploying.</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSaveSettings} className="space-y-6">
+                  
+                  {/* Gemini Key */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Gemini API Key</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Key className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <input
+                        type="password"
+                        value={settingsApiKey}
+                        onChange={(e) => setSettingsApiKey(e.target.value)}
+                        placeholder="AIzaSy..."
+                        className="w-full pl-9 rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-3 border text-sm font-mono"
+                      />
+                    </div>
+                    <p className="mt-1.5 text-xs text-gray-500">Required for the AI Shade Consultant to work.</p>
+                  </div>
+
+                  {/* Google Client ID */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Google Client ID</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Globe className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <input
+                        type="text"
+                        value={settingsClientId}
+                        onChange={(e) => setSettingsClientId(e.target.value)}
+                        placeholder="123456...apps.googleusercontent.com"
+                        className="w-full pl-9 rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-3 border text-sm font-mono"
+                      />
+                    </div>
+                    <p className="mt-1.5 text-xs text-gray-500">Required for "Sign in with Google". Find this in Google Cloud Console.</p>
+                  </div>
+
+                  <div className="pt-4 flex items-center justify-between">
+                     {showSaveMessage ? (
+                       <span className="text-green-600 font-medium text-sm flex items-center">
+                         <Save className="w-4 h-4 mr-1" /> Saved to browser! Reloading...
+                       </span>
+                     ) : <span></span>}
+                     
+                     <button
+                        type="submit"
+                        className="flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-black hover:bg-gray-900 transition-all"
+                      >
+                        Save Configuration
+                      </button>
+                  </div>
+                </form>
+             </div>
+             
+             <div className="mt-6 bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800">
+               <p className="font-semibold mb-1">Tip:</p>
+               <p>These keys are saved in your browser's Local Storage. If you clear your cache, you will need to enter them again.</p>
+             </div>
+          </div>
         )}
       </div>
     </div>

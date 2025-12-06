@@ -21,9 +21,11 @@ export const getRecommendation = async (
   imageBase64?: string
 ): Promise<Recommendation> => {
   try {
-    const apiKey = process.env.API_KEY;
+    // Check Environment Variable first, then LocalStorage
+    const apiKey = process.env.API_KEY || localStorage.getItem('GLAZE_API_KEY');
+    
     if (!apiKey) {
-      throw new Error("API Key is missing. Please set API_KEY in your environment variables.");
+      throw new Error("API Key is missing. Please set it in the Admin Dashboard Settings.");
     }
 
     const ai = new GoogleGenAI({ apiKey: apiKey });

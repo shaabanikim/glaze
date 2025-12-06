@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import { X, Mail, Lock, ArrowRight, AlertCircle, Settings } from 'lucide-react';
 import { User } from '../types';
 
 interface LoginModalProps {
@@ -27,30 +27,39 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [googleError, setGoogleError] = useState('');
+  const [clientId, setClientId] = useState('');
+
+  // Check for Client ID sources
+  useEffect(() => {
+    const envId = process.env.GOOGLE_CLIENT_ID;
+    const storageId = localStorage.getItem('GLAZE_GOOGLE_CLIENT_ID');
+    setClientId(envId || storageId || '');
+  }, [isOpen]);
 
   // Initialize Google Sign In
   useEffect(() => {
-    if (!isOpen) return;
-
-    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!isOpen || !clientId) return;
     
-    // Check if google script is loaded and client ID is present
-    if (typeof (window as any).google !== 'undefined' && clientId) {
+    // Check if google script is loaded
+    if (typeof (window as any).google !== 'undefined') {
       try {
         (window as any).google.accounts.id.initialize({
           client_id: clientId,
           callback: handleGoogleCallback
         });
         
-        (window as any).google.accounts.id.renderButton(
-          document.getElementById("googleButtonDiv"),
-          { theme: "outline", size: "large", width: "100%" } 
-        );
+        const btnDiv = document.getElementById("googleButtonDiv");
+        if (btnDiv) {
+          (window as any).google.accounts.id.renderButton(
+            btnDiv,
+            { theme: "outline", size: "large", width: "100%" } 
+          );
+        }
       } catch (err) {
         console.error("Google Sign-In Error", err);
       }
     }
-  }, [isOpen]);
+  }, [isOpen, clientId]);
 
   const handleGoogleCallback = (response: any) => {
     const payload = decodeJwt(response.credential);
@@ -60,7 +69,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
         name: payload.name,
         email: payload.email,
         avatar: payload.picture,
-        isAdmin: false // Default to false for real users
+        isAdmin: false // Real users start as non-admin
       };
       onLogin(newUser);
       onClose();
@@ -79,19 +88,17 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
     // Simulate network delay for email login
     setTimeout(() => {
       setIsLoading(false);
-      // For email login, we still mock for now as we don't have a backend database
+      // We make the demo user an Admin so you can access the Settings Dashboard
       const mockUser: User = {
-        name: 'Demo User',
+        name: 'Demo Admin',
         email: email,
         avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop',
-        isAdmin: false
+        isAdmin: true
       };
       onLogin(mockUser);
       onClose();
     }, 1500);
   };
-
-  const hasClientId = !!process.env.GOOGLE_CLIENT_ID;
 
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto">
@@ -128,14 +135,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
 
             {/* Google Login Container */}
             <div className="min-h-[50px] mb-4">
-              {hasClientId ? (
+              {clientId ? (
                 <div id="googleButtonDiv" className="w-full flex justify-center"></div>
               ) : (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start text-left text-xs text-yellow-800">
-                  <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" />
-                  <p>
-                    Google Sign-In is disabled. Please set <b>GOOGLE_CLIENT_ID</b> in Netlify environment variables.
-                  </p>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col items-center text-center text-xs text-gray-600">
+                  <Settings className="w-5 h-5 text-gray-400 mb-2" />
+                  <p className="mb-1">Google Sign-In is not configured.</p>
+                  <p>Log in via email below to access Admin Settings and add your Client ID.</p>
                 </div>
               )}
             </div>
@@ -201,15 +207,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
 
             <div className="mt-8 text-center">
               <p className="text-xs text-gray-400">
-                By continuing, you agree to our Terms of Service and Privacy Policy.
+                (Demo Login: Use any email/password to access Admin Dashboard)
               </p>
             </div>
-          </div>
-          
-          <div className="bg-gray-50 px-8 py-4 border-t border-gray-100 text-center">
-            <p className="text-xs text-gray-500">
-              Trusted by 1M+ beauty lovers worldwide
-            </p>
           </div>
         </div>
       </div>

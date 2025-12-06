@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mail, Lock, ArrowRight, AlertCircle, Settings } from 'lucide-react';
+import { X, Mail, Lock, ArrowRight, AlertCircle, Settings, User as UserIcon } from 'lucide-react';
 import { User } from '../types';
 
 interface LoginModalProps {
@@ -23,9 +23,16 @@ const decodeJwt = (token: string) => {
 };
 
 const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => {
+  const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Form State
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  
+  // Google State
   const [googleError, setGoogleError] = useState('');
   const [clientId, setClientId] = useState('');
 
@@ -35,6 +42,19 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
     const storageId = localStorage.getItem('GLAZE_GOOGLE_CLIENT_ID');
     setClientId(envId || storageId || '');
   }, [isOpen]);
+
+  // Reset form when switching modes
+  useEffect(() => {
+    setAuthError('');
+    setGoogleError('');
+    if (!isOpen) {
+        // Reset inputs on close
+        setEmail('');
+        setPassword('');
+        setName('');
+        setIsSignUp(false);
+    }
+  }, [isSignUp, isOpen]);
 
   // Initialize Google Sign In
   useEffect(() => {
@@ -80,24 +100,76 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
 
   if (!isOpen) return null;
 
-  const handleEmailLogin = (e: React.FormEvent) => {
+  const handleAuthSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
+    if (isSignUp && !name) return;
 
     setIsLoading(true);
-    // Simulate network delay for email login
+    setAuthError('');
+
+    // Simulate network delay for effect
     setTimeout(() => {
+      try {
+          const users = JSON.parse(localStorage.getItem('GLAZE_USERS') || '{}');
+          
+          if (isSignUp) {
+             // SIGN UP LOGIC
+             if (users[email]) {
+                 setAuthError('An account with this email already exists.');
+                 setIsLoading(false);
+                 return;
+             }
+
+             const newUser = {
+                 name,
+                 email,
+                 password, // NOTE: In a real app, passwords must be hashed!
+                 avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=fce7f3&color=db2777&bold=true`,
+                 isAdmin: false
+             };
+             
+             // Save to "DB"
+             users[email] = newUser;
+             localStorage.setItem('GLAZE_USERS', JSON.stringify(users));
+             
+             // Auto login
+             const { password: _, ...userProfile } = newUser;
+             onLogin(userProfile);
+             onClose();
+
+          } else {
+             // LOGIN LOGIC
+             const user = users[email];
+             
+             if (user && user.password === password) {
+                 const { password: _, ...userProfile } = user;
+                 onLogin(userProfile);
+                 onClose();
+             } else {
+                 setAuthError('Invalid email or password.');
+             }
+          }
+      } catch (err) {
+          setAuthError('Something went wrong. Please try again.');
+      }
       setIsLoading(false);
-      // We make the demo user an Admin so you can access the Settings Dashboard
-      const mockUser: User = {
-        name: 'Demo Admin',
-        email: email,
-        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop',
-        isAdmin: true
-      };
-      onLogin(mockUser);
-      onClose();
-    }, 1500);
+    }, 1000);
+  };
+
+  // Quick Demo Admin Login
+  const handleDemoLogin = () => {
+      setIsLoading(true);
+      setTimeout(() => {
+        const mockUser: User = {
+            name: 'Demo Admin',
+            email: 'admin@glaze.com',
+            avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop',
+            isAdmin: true
+        };
+        onLogin(mockUser);
+        onClose();
+      }, 800);
   };
 
   return (
@@ -115,7 +187,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
           {/* Close Button */}
           <button 
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors z-10"
           >
             <X className="w-5 h-5" />
           </button>
@@ -123,13 +195,15 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
           <div className="p-8">
             <div className="text-center mb-8">
               <span className="text-pink-500 font-semibold tracking-widest uppercase text-xs mb-2 block">
-                Join the Club
+                {isSignUp ? 'Join the Club' : 'Welcome Back'}
               </span>
               <h3 className="text-3xl font-serif font-bold text-gray-900 mb-2">
-                Welcome to Glaze
+                {isSignUp ? 'Create Account' : 'Sign In'}
               </h3>
               <p className="text-gray-500 text-sm">
-                Sign in to save your favorite shades, track orders, and get exclusive access to new drops.
+                {isSignUp 
+                  ? 'Sign up to unlock exclusive shades and track your orders.' 
+                  : 'Access your wishlist and order history.'}
               </p>
             </div>
 
@@ -138,16 +212,15 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
               {clientId ? (
                 <div id="googleButtonDiv" className="w-full flex justify-center"></div>
               ) : (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col items-center text-center text-xs text-gray-600">
-                  <Settings className="w-5 h-5 text-gray-400 mb-2" />
-                  <p className="mb-1">Google Sign-In is not configured.</p>
-                  <p>Log in via email below to access Admin Settings and add your Client ID.</p>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col items-center text-center text-xs text-gray-600">
+                  <Settings className="w-4 h-4 text-gray-400 mb-1" />
+                  <p>Google Sign-In is not configured.</p>
                 </div>
               )}
             </div>
 
             {googleError && (
-              <p className="text-red-500 text-sm text-center mb-4">{googleError}</p>
+              <p className="text-red-500 text-xs text-center mb-4 bg-red-50 p-2 rounded">{googleError}</p>
             )}
 
             {/* Divider */}
@@ -157,8 +230,26 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
                 <div className="flex-grow border-t border-gray-200"></div>
             </div>
 
-            {/* Email Form */}
-            <form onSubmit={handleEmailLogin} className="space-y-4">
+            {/* Auth Form */}
+            <form onSubmit={handleAuthSubmit} className="space-y-4">
+              
+              {isSignUp && (
+                  <div className="animate-fadeIn">
+                    <label className="sr-only">Full Name</label>
+                    <div className="relative">
+                      <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input 
+                        type="text" 
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Full Name"
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
+                        required={isSignUp}
+                      />
+                    </div>
+                  </div>
+              )}
+
               <div>
                 <label className="sr-only">Email</label>
                 <div className="relative">
@@ -185,31 +276,56 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
                     placeholder="Password"
                     className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
                     required
+                    minLength={6}
                   />
                 </div>
               </div>
+
+              {authError && (
+                 <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg text-sm">
+                    <AlertCircle className="w-4 h-4" />
+                    {authError}
+                 </div>
+              )}
 
               <button
                 type="submit"
                 disabled={isLoading}
                 className="w-full flex items-center justify-center gap-2 bg-black text-white rounded-full px-6 py-3 font-medium hover:bg-gray-800 hover:shadow-lg transition-all duration-200 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {isLoading && email ? (
+                {isLoading ? (
                   <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                 ) : (
                   <>
-                    <span>Log In</span>
+                    <span>{isSignUp ? 'Create Account' : 'Log In'}</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
             </form>
 
-            <div className="mt-8 text-center">
-              <p className="text-xs text-gray-400">
-                (Demo Login: Use any email/password to access Admin Dashboard)
+            <div className="mt-6 text-center text-sm text-gray-600">
+              <p>
+                {isSignUp ? "Already have an account?" : "Don't have an account?"}
+                <button 
+                  onClick={() => setIsSignUp(!isSignUp)}
+                  className="ml-2 font-semibold text-pink-600 hover:text-pink-700 underline"
+                >
+                  {isSignUp ? 'Log In' : 'Sign Up'}
+                </button>
               </p>
             </div>
+
+            {!isSignUp && (
+                <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+                    <button 
+                        onClick={handleDemoLogin}
+                        className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                        Demo: Log in as Admin
+                    </button>
+                </div>
+            )}
           </div>
         </div>
       </div>

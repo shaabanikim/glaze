@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import ProductCard from './components/ProductCard';
@@ -38,6 +38,18 @@ const App: React.FC = () => {
   // Payment State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
+  // Load session on mount
+  useEffect(() => {
+    const storedUser = localStorage.getItem('GLAZE_SESSION_USER');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error("Failed to restore session", e);
+      }
+    }
+  }, []);
+
   const addToCart = (product: Product) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
@@ -65,11 +77,13 @@ const App: React.FC = () => {
   // Auth Handlers
   const handleLogin = (userData: User) => {
     setUser(userData);
+    localStorage.setItem('GLAZE_SESSION_USER', JSON.stringify(userData));
     setIsLoginModalOpen(false);
   };
 
   const handleLogout = () => {
     setUser(null);
+    localStorage.removeItem('GLAZE_SESSION_USER');
     setCart([]); // Optional: clear cart on logout
     setView('shop');
   };

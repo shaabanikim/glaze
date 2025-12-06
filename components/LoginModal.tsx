@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mail, Lock, ArrowRight, AlertCircle, Settings, User as UserIcon } from 'lucide-react';
+import { X, Mail, Lock, ArrowRight, AlertCircle, Settings, User as UserIcon, KeyRound, CheckCircle } from 'lucide-react';
 import { User } from '../types';
 
 interface LoginModalProps {
@@ -24,12 +24,15 @@ const decodeJwt = (token: string) => {
 
 const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [verificationStep, setVerificationStep] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
   // Form State
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
+  const [generatedOtp, setGeneratedOtp] = useState('');
   const [authError, setAuthError] = useState('');
   
   // Google State
@@ -52,13 +55,16 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
         setEmail('');
         setPassword('');
         setName('');
+        setOtp('');
+        setGeneratedOtp('');
         setIsSignUp(false);
+        setVerificationStep(false);
     }
   }, [isSignUp, isOpen]);
 
   // Initialize Google Sign In
   useEffect(() => {
-    if (!isOpen || !clientId) return;
+    if (!isOpen || !clientId || verificationStep) return;
     
     // Check if google script is loaded
     if (typeof (window as any).google !== 'undefined') {
@@ -79,7 +85,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
         console.error("Google Sign-In Error", err);
       }
     }
-  }, [isOpen, clientId]);
+  }, [isOpen, clientId, verificationStep]);
 
   const handleGoogleCallback = (response: any) => {
     const payload = decodeJwt(response.credential);
@@ -102,41 +108,74 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
 
   const handleAuthSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError('');
+
+    // --- VERIFICATION STEP ---
+    if (verificationStep) {
+        if (!otp) {
+            setAuthError('Please enter the verification code.');
+            return;
+        }
+
+        setIsLoading(true);
+        // Simulate network delay
+        setTimeout(() => {
+            if (otp === generatedOtp) {
+                try {
+                    const users = JSON.parse(localStorage.getItem('GLAZE_USERS') || '{}');
+                    const newUser = {
+                        name,
+                        email,
+                        password,
+                        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=fce7f3&color=db2777&bold=true`,
+                        isAdmin: false
+                    };
+                    
+                    // Save to "DB"
+                    users[email] = newUser;
+                    localStorage.setItem('GLAZE_USERS', JSON.stringify(users));
+                    
+                    // Auto login
+                    const { password: _, ...userProfile } = newUser;
+                    onLogin(userProfile);
+                    onClose();
+                } catch(e) {
+                    setAuthError('Failed to create account. Please try again.');
+                }
+            } else {
+                setAuthError('Invalid verification code. Please check your "email".');
+            }
+            setIsLoading(false);
+        }, 800);
+        return;
+    }
+
+    // --- LOGIN / SIGNUP INIT ---
     if (!email || !password) return;
     if (isSignUp && !name) return;
 
     setIsLoading(true);
-    setAuthError('');
 
-    // Simulate network delay for effect
     setTimeout(() => {
       try {
           const users = JSON.parse(localStorage.getItem('GLAZE_USERS') || '{}');
           
           if (isSignUp) {
-             // SIGN UP LOGIC
              if (users[email]) {
                  setAuthError('An account with this email already exists.');
                  setIsLoading(false);
                  return;
              }
 
-             const newUser = {
-                 name,
-                 email,
-                 password, // NOTE: In a real app, passwords must be hashed!
-                 avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=fce7f3&color=db2777&bold=true`,
-                 isAdmin: false
-             };
+             // Generate OTP for Verification
+             const code = Math.floor(100000 + Math.random() * 900000).toString();
+             setGeneratedOtp(code);
+             setVerificationStep(true);
              
-             // Save to "DB"
-             users[email] = newUser;
-             localStorage.setItem('GLAZE_USERS', JSON.stringify(users));
-             
-             // Auto login
-             const { password: _, ...userProfile } = newUser;
-             onLogin(userProfile);
-             onClose();
+             // SIMULATE EMAIL SENDING
+             setTimeout(() => {
+                 alert(`[DEMO EMAIL SERVER]\n\nTo: ${email}\nFrom: Glaze Cosmetics\nSubject: Verify your account\n\nYour verification code is: ${code}`);
+             }, 500);
 
           } else {
              // LOGIN LOGIC
@@ -172,6 +211,12 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
       }, 800);
   };
 
+  const handleResendCode = () => {
+     const code = Math.floor(100000 + Math.random() * 900000).toString();
+     setGeneratedOtp(code);
+     alert(`[DEMO EMAIL SERVER]\n\n(Resent) Your verification code is: ${code}`);
+  };
+
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto">
       {/* Backdrop */}
@@ -195,91 +240,123 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
           <div className="p-8">
             <div className="text-center mb-8">
               <span className="text-pink-500 font-semibold tracking-widest uppercase text-xs mb-2 block">
-                {isSignUp ? 'Join the Club' : 'Welcome Back'}
+                {verificationStep ? 'Verify Email' : (isSignUp ? 'Join the Club' : 'Welcome Back')}
               </span>
               <h3 className="text-3xl font-serif font-bold text-gray-900 mb-2">
-                {isSignUp ? 'Create Account' : 'Sign In'}
+                {verificationStep ? 'Check Your Inbox' : (isSignUp ? 'Create Account' : 'Sign In')}
               </h3>
               <p className="text-gray-500 text-sm">
-                {isSignUp 
-                  ? 'Sign up to unlock exclusive shades and track your orders.' 
-                  : 'Access your wishlist and order history.'}
+                {verificationStep 
+                   ? `We've sent a code to ${email}. Please enter it below.`
+                   : (isSignUp 
+                     ? 'Sign up to unlock exclusive shades and track your orders.' 
+                     : 'Access your wishlist and order history.')}
               </p>
             </div>
 
-            {/* Google Login Container */}
-            <div className="min-h-[50px] mb-4">
-              {clientId ? (
-                <div id="googleButtonDiv" className="w-full flex justify-center"></div>
-              ) : (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col items-center text-center text-xs text-gray-600">
-                  <Settings className="w-4 h-4 text-gray-400 mb-1" />
-                  <p>Google Sign-In is not configured.</p>
-                </div>
-              )}
-            </div>
+            {/* Google Login Container - Only show if not in verification */}
+            {!verificationStep && (
+                <>
+                    <div className="min-h-[50px] mb-4">
+                    {clientId ? (
+                        <div id="googleButtonDiv" className="w-full flex justify-center"></div>
+                    ) : (
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col items-center text-center text-xs text-gray-600">
+                        <Settings className="w-4 h-4 text-gray-400 mb-1" />
+                        <p>Google Sign-In is not configured.</p>
+                        </div>
+                    )}
+                    </div>
 
-            {googleError && (
-              <p className="text-red-500 text-xs text-center mb-4 bg-red-50 p-2 rounded">{googleError}</p>
+                    {googleError && (
+                    <p className="text-red-500 text-xs text-center mb-4 bg-red-50 p-2 rounded">{googleError}</p>
+                    )}
+
+                    {/* Divider */}
+                    <div className="relative flex py-6 items-center">
+                        <div className="flex-grow border-t border-gray-200"></div>
+                        <span className="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase">Or with email</span>
+                        <div className="flex-grow border-t border-gray-200"></div>
+                    </div>
+                </>
             )}
-
-            {/* Divider */}
-            <div className="relative flex py-6 items-center">
-                <div className="flex-grow border-t border-gray-200"></div>
-                <span className="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase">Or with email</span>
-                <div className="flex-grow border-t border-gray-200"></div>
-            </div>
 
             {/* Auth Form */}
             <form onSubmit={handleAuthSubmit} className="space-y-4">
               
-              {isSignUp && (
-                  <div className="animate-fadeIn">
-                    <label className="sr-only">Full Name</label>
-                    <div className="relative">
-                      <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input 
-                        type="text" 
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Full Name"
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
-                        required={isSignUp}
-                      />
+              {!verificationStep ? (
+                  /* STANDARD FORM */
+                  <>
+                    {isSignUp && (
+                        <div className="animate-fadeIn">
+                            <label className="sr-only">Full Name</label>
+                            <div className="relative">
+                            <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input 
+                                type="text" 
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="Full Name"
+                                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
+                                required={isSignUp}
+                            />
+                            </div>
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="sr-only">Email</label>
+                        <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input 
+                            type="email" 
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="Email address"
+                            className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
+                            required
+                        />
+                        </div>
                     </div>
+                    
+                    <div>
+                        <label className="sr-only">Password</label>
+                        <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input 
+                            type="password" 
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Password"
+                            className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
+                            required
+                            minLength={6}
+                        />
+                        </div>
+                    </div>
+                  </>
+              ) : (
+                  /* VERIFICATION FORM */
+                  <div className="animate-fadeIn">
+                     <label className="sr-only">Verification Code</label>
+                     <div className="relative">
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input 
+                            type="text" 
+                            value={otp}
+                            onChange={(e) => setOtp(e.target.value)}
+                            placeholder="Enter 6-digit code"
+                            className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all tracking-widest"
+                            required
+                            maxLength={6}
+                        />
+                     </div>
+                     <div className="flex justify-between items-center mt-2 text-xs">
+                         <button type="button" onClick={() => setVerificationStep(false)} className="text-gray-500 hover:text-gray-800">Change Email</button>
+                         <button type="button" onClick={handleResendCode} className="text-pink-600 font-medium hover:underline">Resend Code</button>
+                     </div>
                   </div>
               )}
-
-              <div>
-                <label className="sr-only">Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input 
-                    type="email" 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email address"
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="sr-only">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input 
-                    type="password" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Password"
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
-                    required
-                    minLength={6}
-                  />
-                </div>
-              </div>
 
               {authError && (
                  <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg text-sm">
@@ -297,26 +374,30 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
                   <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                 ) : (
                   <>
-                    <span>{isSignUp ? 'Create Account' : 'Log In'}</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <span>
+                        {verificationStep ? 'Verify & Create Account' : (isSignUp ? 'Create Account' : 'Log In')}
+                    </span>
+                    {verificationStep ? <CheckCircle className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
                   </>
                 )}
               </button>
             </form>
 
             <div className="mt-6 text-center text-sm text-gray-600">
-              <p>
-                {isSignUp ? "Already have an account?" : "Don't have an account?"}
-                <button 
-                  onClick={() => setIsSignUp(!isSignUp)}
-                  className="ml-2 font-semibold text-pink-600 hover:text-pink-700 underline"
-                >
-                  {isSignUp ? 'Log In' : 'Sign Up'}
-                </button>
-              </p>
+              {!verificationStep && (
+                  <p>
+                    {isSignUp ? "Already have an account?" : "Don't have an account?"}
+                    <button 
+                    onClick={() => setIsSignUp(!isSignUp)}
+                    className="ml-2 font-semibold text-pink-600 hover:text-pink-700 underline"
+                    >
+                    {isSignUp ? 'Log In' : 'Sign Up'}
+                    </button>
+                  </p>
+              )}
             </div>
 
-            {!isSignUp && (
+            {!isSignUp && !verificationStep && (
                 <div className="mt-8 pt-6 border-t border-gray-100 text-center">
                     <button 
                         onClick={handleDemoLogin}

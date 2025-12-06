@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mail, Lock, ArrowRight, AlertCircle, Settings, User as UserIcon, KeyRound, CheckCircle } from 'lucide-react';
+import { X, Mail, Lock, ArrowRight, AlertCircle, Settings, User as UserIcon, KeyRound, CheckCircle, ExternalLink } from 'lucide-react';
 import { User } from '../types';
 
 interface LoginModalProps {
@@ -38,6 +38,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
   // Google State
   const [googleError, setGoogleError] = useState('');
   const [clientId, setClientId] = useState('');
+  const [isConfiguring, setIsConfiguring] = useState(false);
+  const [tempClientId, setTempClientId] = useState('');
 
   // Check for Client ID sources
   useEffect(() => {
@@ -50,6 +52,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
   useEffect(() => {
     setAuthError('');
     setGoogleError('');
+    setIsConfiguring(false);
     if (!isOpen) {
         // Reset inputs on close
         setEmail('');
@@ -102,6 +105,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
     } else {
       setGoogleError('Failed to verify Google account.');
     }
+  };
+
+  const handleSaveClientId = () => {
+      if (!tempClientId.trim()) return;
+      localStorage.setItem('GLAZE_GOOGLE_CLIENT_ID', tempClientId);
+      setClientId(tempClientId);
+      setIsConfiguring(false);
   };
 
   if (!isOpen) return null;
@@ -261,10 +271,51 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
                     {clientId ? (
                         <div id="googleButtonDiv" className="w-full flex justify-center"></div>
                     ) : (
-                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col items-center text-center text-xs text-gray-600">
-                        <Settings className="w-4 h-4 text-gray-400 mb-1" />
-                        <p>Google Sign-In is not configured.</p>
-                        </div>
+                        isConfiguring ? (
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 animate-fadeIn">
+                                <label className="block text-xs font-medium text-gray-700 mb-2 text-left">Enter Google Client ID</label>
+                                <div className="flex gap-2 mb-2">
+                                    <input 
+                                        type="text" 
+                                        value={tempClientId}
+                                        onChange={(e) => setTempClientId(e.target.value)}
+                                        className="flex-1 text-xs border border-gray-300 rounded px-2 py-2 outline-none focus:border-pink-500"
+                                        placeholder="123...apps.googleusercontent.com"
+                                    />
+                                    <button 
+                                        onClick={handleSaveClientId}
+                                        className="bg-black text-white text-xs px-3 py-1 rounded hover:bg-gray-800 transition-colors"
+                                    >
+                                        Save
+                                    </button>
+                                </div>
+                                
+                                {/* HELPER TEXT FOR PUBLIC ACCESS */}
+                                <div className="bg-blue-50 p-2 rounded border border-blue-100 mb-1">
+                                    <p className="text-[10px] text-blue-800 leading-tight text-left">
+                                        <span className="font-bold">Important:</span> To let anyone sign in, go to Google Cloud Console {'>'} OAuth consent screen and set User Type to <span className="font-bold">External</span>, then click <span className="font-bold">PUBLISH APP</span>.
+                                    </p>
+                                </div>
+
+                                <div className="text-right mt-1">
+                                    <button onClick={() => setIsConfiguring(false)} className="text-[10px] text-gray-400 hover:text-gray-600">Cancel</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex flex-col items-center text-center text-xs text-amber-900">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                                    <span className="font-semibold">Google Sign-In Disabled</span>
+                                </div>
+                                <p className="mb-2 opacity-80">Client ID is missing.</p>
+                                <button 
+                                    onClick={() => setIsConfiguring(true)}
+                                    className="text-amber-700 underline hover:text-amber-900 font-medium"
+                                >
+                                    Configure Now
+                                </button>
+                            </div>
+                        )
                     )}
                     </div>
 

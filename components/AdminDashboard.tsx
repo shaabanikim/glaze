@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle } from 'lucide-react';
 import { Product } from '../types';
 
 interface AdminDashboardProps {
@@ -24,6 +24,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [settingsApiKey, setSettingsApiKey] = useState('');
   const [settingsClientId, setSettingsClientId] = useState('');
   const [showSaveMessage, setShowSaveMessage] = useState(false);
+  const [copiedOrigin, setCopiedOrigin] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -81,6 +82,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     
     setShowSaveMessage(true);
     setTimeout(() => setShowSaveMessage(false), 3000);
+  };
+
+  const copyOrigin = () => {
+    navigator.clipboard.writeText(window.location.origin);
+    setCopiedOrigin(true);
+    setTimeout(() => setCopiedOrigin(false), 2000);
   };
 
   return (
@@ -334,6 +341,64 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <p className="text-sm text-gray-500">Manage your API keys without redeploying.</p>
                   </div>
                 </div>
+                
+                {/* Instructions Box */}
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-5 mb-8">
+                  <div className="flex items-start gap-3">
+                    <HelpCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-blue-900 w-full">
+                      <h4 className="font-bold mb-2">How to enable "Sign in with Google":</h4>
+                      <ol className="list-decimal list-inside space-y-1 ml-1 text-blue-800 mb-4">
+                        <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="underline hover:text-blue-600">Google Cloud Console</a>.</li>
+                        <li>Create a project and go to <b>APIs & Services {'>'} Credentials</b>.</li>
+                        <li>Click <b>Create Credentials {'>'} OAuth client ID</b>.</li>
+                        <li className="font-semibold text-pink-600">
+                          Application type MUST be set to "Web application"
+                          <span className="block text-xs font-normal text-blue-800 mt-1">If you choose Desktop/Mobile, the options won't appear!</span>
+                        </li>
+                        <li>Look for the section titled <b>"Authorized JavaScript origins"</b>.</li>
+                        <li>Click "ADD URI" and paste the URL below:</li>
+                      </ol>
+                      
+                      {/* Copy URL Helper */}
+                      <div className="flex items-center gap-2 bg-blue-100/50 p-2 rounded-md border border-blue-200">
+                        <code className="flex-1 font-mono text-xs text-blue-800 truncate">
+                          {window.location.origin}
+                        </code>
+                        <button 
+                          onClick={copyOrigin}
+                          className="p-1.5 hover:bg-blue-200 rounded transition-colors text-blue-700"
+                          title="Copy URL"
+                        >
+                          {copiedOrigin ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+
+                      <ol className="list-decimal list-inside space-y-1 ml-1 text-blue-800 mt-4" start={7}>
+                        <li>Click Create. Copy the <b>Client ID</b> and paste it below.</li>
+                      </ol>
+
+                      {/* PUBLISH APP NOTICE */}
+                      <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-900 text-xs">
+                         <div className="flex items-start gap-2">
+                           <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                           <div>
+                             <p className="font-bold">CRITICAL: Allow Anyone to Login</p>
+                             <p className="mt-1">
+                               By default, your Google App is in "Testing" mode and only approved emails can log in. 
+                               To let <b>anyone</b> log in:
+                             </p>
+                             <ul className="list-disc list-inside mt-1 ml-1">
+                               <li>Go to <b>"OAuth consent screen"</b> in Google Cloud.</li>
+                               <li>Set User Type to <b>External</b>.</li>
+                               <li>Click the <b>"PUBLISH APP"</b> button.</li>
+                             </ul>
+                           </div>
+                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 <form onSubmit={handleSaveSettings} className="space-y-6">
                   
@@ -370,7 +435,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         className="w-full pl-9 rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-3 border text-sm font-mono"
                       />
                     </div>
-                    <p className="mt-1.5 text-xs text-gray-500">Required for "Sign in with Google". Find this in Google Cloud Console.</p>
+                    <p className="mt-1.5 text-xs text-gray-500">Enables the "Sign in with Google" button.</p>
                   </div>
 
                   <div className="pt-4 flex items-center justify-between">
@@ -390,9 +455,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </form>
              </div>
              
-             <div className="mt-6 bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800">
-               <p className="font-semibold mb-1">Tip:</p>
-               <p>These keys are saved in your browser's Local Storage. If you clear your cache, you will need to enter them again.</p>
+             <div className="mt-6 text-center text-xs text-gray-400">
+               <p>Keys are stored locally in your browser for convenience.</p>
              </div>
           </div>
         )}

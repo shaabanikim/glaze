@@ -460,10 +460,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <Mail className="w-5 h-5 text-gray-400" />
                       <h3 className="text-md font-bold text-gray-900">Email Verification Settings (EmailJS)</h3>
                     </div>
-                    <p className="text-xs text-gray-500 mb-4">
-                      Create an account at <a href="https://www.emailjs.com/" target="_blank" rel="noreferrer" className="text-blue-600 underline">EmailJS.com</a> to send real verification codes.
-                      <br/>Template variables: <code>{'{{to_name}}'}</code> and <code>{'{{otp}}'}</code>.
-                    </p>
+                    
+                    {/* HELP BOX FOR EMAILJS KEYS */}
+                    <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 mb-6">
+                      <div className="flex items-start gap-3">
+                        <HelpCircle className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-purple-900 w-full">
+                          <h4 className="font-bold mb-2">How to get these keys:</h4>
+                          <ol className="list-decimal list-inside space-y-2 ml-1 text-purple-800">
+                            <li>
+                              <span className="font-semibold">Service ID:</span> Go to the <b>Email Services</b> tab. Click "Add Service" (e.g., Gmail). The ID (e.g., <code>service_xyz</code>) is shown there.
+                            </li>
+                            <li>
+                              <span className="font-semibold">Template ID:</span> Go to <b>Email Templates</b>. Create a new template. Click "Settings" or look at the ID (e.g., <code>template_xyz</code>).
+                              <br/>
+                              <span className="text-xs opacity-80 pl-4 block mt-1">
+                                Important: Add <code>{'{{to_name}}'}</code> and <code>{'{{otp}}'}</code> to your template content.
+                              </span>
+                            </li>
+                            <li>
+                              <span className="font-semibold">Public Key:</span> Click your name/avatar in the top right → <b>Account</b> → <b>API Keys</b>. Use the "Public Key".
+                            </li>
+                          </ol>
+                        </div>
+                      </div>
+                    </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>

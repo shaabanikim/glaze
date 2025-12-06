@@ -23,6 +23,10 @@ export const getRecommendation = async (
   imageBase64?: string
 ): Promise<Recommendation> => {
   try {
+    if (!process.env.API_KEY) {
+      throw new Error("API Key is missing.");
+    }
+
     const parts: any[] = [];
     
     if (imageBase64) {

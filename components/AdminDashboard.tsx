@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle, Mail, Cloud, UploadCloud, Loader2, DownloadCloud, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle, Mail, Cloud, UploadCloud, Loader2, DownloadCloud, RefreshCw, ExternalLink } from 'lucide-react';
 import { Product } from '../types';
 
 interface AdminDashboardProps {
@@ -23,6 +23,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Settings State
   const [settingsApiKey, setSettingsApiKey] = useState('');
   const [settingsClientId, setSettingsClientId] = useState('');
+  const [paypalEmail, setPaypalEmail] = useState('');
   
   // EmailJS Settings
   const [emailServiceId, setEmailServiceId] = useState('');
@@ -41,6 +42,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // Load existing keys from storage or env on mount
     setSettingsApiKey(localStorage.getItem('GLAZE_API_KEY') || process.env.API_KEY || '');
     setSettingsClientId(localStorage.getItem('GLAZE_GOOGLE_CLIENT_ID') || process.env.GOOGLE_CLIENT_ID || '');
+    setPaypalEmail(localStorage.getItem('GLAZE_PAYPAL_EMAIL') || 'ayubshaaban040@gmail.com');
     
     // Load EmailJS
     setEmailServiceId(localStorage.getItem('GLAZE_EMAIL_SERVICE_ID') || '');
@@ -91,14 +93,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('GLAZE_API_KEY', settingsApiKey);
-    localStorage.setItem('GLAZE_GOOGLE_CLIENT_ID', settingsClientId);
+    
+    // Auto-trim whitespace to prevent common errors
+    const cleanApiKey = settingsApiKey.trim();
+    const cleanClientId = settingsClientId.trim();
+    const cleanPaypalEmail = paypalEmail.trim();
+    const cleanServiceId = emailServiceId.trim();
+    const cleanTemplateId = emailTemplateId.trim();
+    const cleanPublicKey = emailPublicKey.trim();
+
+    localStorage.setItem('GLAZE_API_KEY', cleanApiKey);
+    localStorage.setItem('GLAZE_GOOGLE_CLIENT_ID', cleanClientId);
+    localStorage.setItem('GLAZE_PAYPAL_EMAIL', cleanPaypalEmail);
     
     // Save EmailJS
-    localStorage.setItem('GLAZE_EMAIL_SERVICE_ID', emailServiceId);
-    localStorage.setItem('GLAZE_EMAIL_TEMPLATE_ID', emailTemplateId);
-    localStorage.setItem('GLAZE_EMAIL_PUBLIC_KEY', emailPublicKey);
+    localStorage.setItem('GLAZE_EMAIL_SERVICE_ID', cleanServiceId);
+    localStorage.setItem('GLAZE_EMAIL_TEMPLATE_ID', cleanTemplateId);
+    localStorage.setItem('GLAZE_EMAIL_PUBLIC_KEY', cleanPublicKey);
     
+    // Update state to reflect trimmed values
+    setSettingsApiKey(cleanApiKey);
+    setSettingsClientId(cleanClientId);
+    setPaypalEmail(cleanPaypalEmail);
+    setEmailServiceId(cleanServiceId);
+    setEmailTemplateId(cleanTemplateId);
+    setEmailPublicKey(cleanPublicKey);
+
     setShowSaveMessage(true);
     setTimeout(() => setShowSaveMessage(false), 3000);
   };
@@ -119,25 +139,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     
     const google = (window as any).google;
     if (!google) {
-        alert("Google scripts not loaded.");
+        alert("Google scripts not loaded. Please refresh the page.");
         setBackupStatus('error');
         return;
     }
 
-    const client = google.accounts.oauth2.initTokenClient({
-        client_id: settingsClientId,
-        // 'drive.file' allows us to access only files created by this app
-        scope: 'https://www.googleapis.com/auth/drive.file',
-        callback: (tokenResponse: any) => {
-            if (tokenResponse && tokenResponse.access_token) {
-                callback(tokenResponse.access_token);
-            } else {
-                setBackupStatus('error');
-            }
-        },
-    });
+    try {
+        const client = google.accounts.oauth2.initTokenClient({
+            client_id: settingsClientId,
+            // 'drive.file' allows us to access only files created by this app
+            scope: 'https://www.googleapis.com/auth/drive.file',
+            callback: (tokenResponse: any) => {
+                if (tokenResponse && tokenResponse.access_token) {
+                    callback(tokenResponse.access_token);
+                } else {
+                    console.error("Token response error:", tokenResponse);
+                    setBackupStatus('error');
+                }
+            },
+        });
 
-    client.requestAccessToken();
+        // Add a small delay to ensure UI is ready
+        setTimeout(() => {
+            client.requestAccessToken();
+        }, 100);
+    } catch (err) {
+        console.error("Google Auth Init Error:", err);
+        alert("Failed to initialize Google Auth. Check your Client ID.");
+        setBackupStatus('error');
+    }
   };
 
   const handleBackupToDrive = () => {
@@ -367,9 +397,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           /* Form View */
           <form onSubmit={handleSubmit} className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
-              
-              {/* Image Uploader */}
-              <div className="p-8 bg-gray-50 border-r border-gray-100 flex flex-col items-center justify-center text-center">
+               <div className="p-8 bg-gray-50 border-r border-gray-100 flex flex-col items-center justify-center text-center">
                 <div 
                   onClick={() => fileInputRef.current?.click()}
                   className="relative group w-full aspect-square bg-white rounded-xl border-2 border-dashed border-gray-300 hover:border-pink-500 cursor-pointer overflow-hidden flex flex-col items-center justify-center transition-all"
@@ -397,91 +425,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
                 <p className="mt-4 text-xs text-gray-500">Click to upload product photo</p>
               </div>
-
-              {/* Form Fields */}
+              
               <div className="md:col-span-2 p-8 space-y-6">
                 <div className="grid grid-cols-2 gap-6">
-                  <div>
+                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={editingProduct.name || ''}
-                      onChange={e => setEditingProduct({...editingProduct, name: e.target.value})}
-                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 sm:text-sm p-2.5 border"
-                      placeholder="e.g. Berry Bite"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <DollarSign className="h-4 w-4 text-gray-400" />
-                      </div>
-                      <input
-                        type="number"
-                        required
-                        min="0"
-                        step="0.01"
-                        value={editingProduct.price || ''}
-                        onChange={e => setEditingProduct({...editingProduct, price: parseFloat(e.target.value)})}
-                        className="w-full pl-9 rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 sm:text-sm p-2.5 border"
-                      />
-                    </div>
-                  </div>
+                    <input type="text" required value={editingProduct.name || ''} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} className="w-full rounded-lg border-gray-300 shadow-sm p-2.5 border" />
+                   </div>
+                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                    <input type="number" required value={editingProduct.price || ''} onChange={e => setEditingProduct({...editingProduct, price: parseFloat(e.target.value)})} className="w-full rounded-lg border-gray-300 shadow-sm p-2.5 border" />
+                   </div>
                 </div>
-
                 <div className="grid grid-cols-2 gap-6">
-                  <div>
+                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Shade Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={editingProduct.shade || ''}
-                      onChange={e => setEditingProduct({...editingProduct, shade: e.target.value})}
-                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 sm:text-sm p-2.5 border"
-                      placeholder="e.g. Deep Raspberry"
-                    />
-                  </div>
-                  <div>
+                    <input type="text" required value={editingProduct.shade || ''} onChange={e => setEditingProduct({...editingProduct, shade: e.target.value})} className="w-full rounded-lg border-gray-300 shadow-sm p-2.5 border" />
+                   </div>
+                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Shade Color (Hex)</label>
                     <div className="flex gap-3">
-                      <input
-                        type="color"
-                        value={editingProduct.hex || '#000000'}
-                        onChange={e => setEditingProduct({...editingProduct, hex: e.target.value})}
-                        className="h-10 w-10 rounded p-1 border border-gray-300 cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={editingProduct.hex || ''}
-                        onChange={e => setEditingProduct({...editingProduct, hex: e.target.value})}
-                        className="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 sm:text-sm p-2.5 border font-mono"
-                      />
+                      <input type="color" value={editingProduct.hex || '#000000'} onChange={e => setEditingProduct({...editingProduct, hex: e.target.value})} className="h-10 w-10 rounded p-1 border border-gray-300" />
+                      <input type="text" value={editingProduct.hex || ''} onChange={e => setEditingProduct({...editingProduct, hex: e.target.value})} className="flex-1 rounded-lg border-gray-300 shadow-sm p-2.5 border" />
                     </div>
-                  </div>
+                   </div>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <textarea
-                    rows={4}
-                    value={editingProduct.description || ''}
-                    onChange={e => setEditingProduct({...editingProduct, description: e.target.value})}
-                    className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 sm:text-sm p-2.5 border"
-                    placeholder="Describe the finish, feel, and look..."
-                  />
-                </div>
-
-                <div className="flex justify-end pt-4 border-t border-gray-100">
-                  <button
-                    type="submit"
-                    className="flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-black hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Product
-                  </button>
-                </div>
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea rows={4} value={editingProduct.description || ''} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} className="w-full rounded-lg border-gray-300 shadow-sm p-2.5 border" />
+                 </div>
+                 <div className="flex justify-end pt-4 border-t border-gray-100">
+                    <button type="submit" className="flex items-center px-6 py-3 text-white bg-black rounded-full hover:bg-gray-900"><Save className="w-4 h-4 mr-2" />Save Product</button>
+                 </div>
               </div>
             </div>
           </form>
@@ -505,15 +480,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="flex items-start gap-3">
                     <HelpCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                     <div className="text-sm text-blue-900 w-full">
-                      <h4 className="font-bold mb-2">How to fix "Error 400: invalid_request" or "Authorization Error":</h4>
-                      <ol className="list-decimal list-inside space-y-2 ml-1 text-blue-800 mb-4">
-                        <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="underline hover:text-blue-600">Google Cloud Console</a> &rarr; Credentials.</li>
-                        <li>Edit your <b>OAuth 2.0 Client ID</b>.</li>
-                        <li>
-                           Look for <b>Authorized JavaScript origins</b>. You MUST add the exact URL below.
-                           <div className="mt-2 p-2 bg-white border border-blue-200 rounded-md">
+                      <h4 className="font-bold mb-2">Google Drive Connection Checklist:</h4>
+                      <div className="space-y-3">
+                        <div className="bg-white p-3 rounded-lg border border-blue-200">
+                            <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1">Step 1: Copy this exact URL</p>
                              <div className="flex items-center gap-2">
-                               <code className="bg-gray-100 px-2 py-1 rounded text-xs select-all flex-1 font-mono break-all">{window.location.origin}</code>
+                               <code className="bg-gray-100 px-2 py-1.5 rounded text-xs select-all flex-1 font-mono break-all border border-gray-200">
+                                 {window.location.origin}
+                               </code>
                                <button 
                                  onClick={copyOrigin}
                                  className="p-1.5 hover:bg-blue-100 rounded text-blue-600 flex-shrink-0"
@@ -522,30 +496,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                  {copiedOrigin ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                </button>
                              </div>
-                             <p className="text-[10px] text-red-600 mt-1 font-bold">
-                               ⚠️ IMPORTANT: Do NOT add a slash "/" at the end. Copy it exactly as shown.
-                             </p>
-                           </div>
-                        </li>
-                        <li>Click <b>Save</b>. It may take 5-10 minutes for changes to propagate.</li>
-                      </ol>
+                        </div>
 
-                      {/* PUBLISH APP NOTICE */}
-                      <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-900 text-xs">
-                         <div className="flex items-start gap-2">
-                           <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                           <div>
-                             <p className="font-bold">Still seeing "Access blocked"?</p>
-                             <p className="mt-1">
-                               If your app is in "Testing" mode, only added test users can log in. 
-                               To fix this for everyone:
-                             </p>
-                             <ul className="list-disc list-inside mt-1 ml-1">
-                               <li>Go to <b>"OAuth consent screen"</b> in Google Cloud.</li>
-                               <li>Click the <b>"PUBLISH APP"</b> button to make it public.</li>
-                             </ul>
-                           </div>
-                         </div>
+                        <div className="bg-white p-3 rounded-lg border border-blue-200">
+                            <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1">Step 2: Go to Google Cloud Console</p>
+                            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="flex items-center text-blue-600 hover:underline font-medium">
+                                Open Credentials Page <ExternalLink className="w-3 h-3 ml-1" />
+                            </a>
+                            <ul className="list-disc list-inside mt-2 space-y-1 text-gray-700">
+                                <li>Edit your <b>OAuth 2.0 Client ID</b>.</li>
+                                <li>
+                                    Find <b>"Authorized JavaScript origins"</b>.
+                                    <span className="block text-red-600 font-bold mt-1 text-[10px] bg-red-50 p-1 rounded border border-red-100">
+                                        ⚠️ DO NOT PASTE INTO "REDIRECT URIS". IT WILL FAIL.
+                                    </span>
+                                </li>
+                                <li>Paste the URL there. <b>Make sure there is NO slash (/) at the end.</b></li>
+                            </ul>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -568,7 +536,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         className="w-full pl-9 rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-3 border text-sm font-mono"
                       />
                     </div>
-                    <p className="mt-1.5 text-xs text-gray-500">Required for the AI Shade Consultant to work.</p>
                   </div>
 
                   {/* Google Client ID */}
@@ -586,72 +553,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         className="w-full pl-9 rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-3 border text-sm font-mono"
                       />
                     </div>
-                    <p className="mt-1.5 text-xs text-gray-500">Enables the "Sign in with Google" button.</p>
                   </div>
 
-                  {/* EMAILJS CONFIGURATION */}
+                  {/* PayPal Settings */}
                   <div className="border-t border-gray-200 pt-6 mt-6">
                     <div className="flex items-center gap-2 mb-4">
-                      <Mail className="w-5 h-5 text-gray-400" />
-                      <h3 className="text-md font-bold text-gray-900">Email Verification Settings (EmailJS)</h3>
+                        <DollarSign className="w-5 h-5 text-gray-400" />
+                        <h3 className="text-md font-bold text-gray-900">Payment Settings</h3>
                     </div>
-                    
-                    {/* HELP BOX FOR EMAILJS KEYS */}
-                    <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 mb-6">
-                      <div className="flex items-start gap-3">
-                        <HelpCircle className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                        <div className="text-sm text-purple-900 w-full">
-                          <h4 className="font-bold mb-2">How to get these keys:</h4>
-                          <ol className="list-decimal list-inside space-y-2 ml-1 text-purple-800">
-                            <li>
-                              <span className="font-semibold">Service ID:</span> Go to the <b>Email Services</b> tab. Click "Add Service" (e.g., Gmail). The ID (e.g., <code>service_xyz</code>) is shown there.
-                            </li>
-                            <li>
-                              <span className="font-semibold">Template ID:</span> Go to <b>Email Templates</b>. Create a new template. Click "Settings" or look at the ID (e.g., <code>template_xyz</code>).
-                              <br/>
-                              <span className="text-xs opacity-80 pl-4 block mt-1">
-                                Important: Add <code>{'{{to_name}}'}</code> and <code>{'{{otp}}'}</code> to your template content.
-                              </span>
-                            </li>
-                            <li>
-                              <span className="font-semibold">Public Key:</span> Click your name/avatar in the top right → <b>Account</b> → <b>API Keys</b>. Use the "Public Key".
-                            </li>
-                          </ol>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Service ID</label>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">PayPal Business Email</label>
                         <input
-                          type="text"
-                          value={emailServiceId}
-                          onChange={(e) => setEmailServiceId(e.target.value)}
-                          placeholder="service_xxxxx"
-                          className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-2.5 border text-xs font-mono"
+                        type="email"
+                        value={paypalEmail}
+                        onChange={(e) => setPaypalEmail(e.target.value)}
+                        placeholder="your-business-email@example.com"
+                        className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-3 border text-sm"
                         />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Template ID</label>
-                        <input
-                          type="text"
-                          value={emailTemplateId}
-                          onChange={(e) => setEmailTemplateId(e.target.value)}
-                          placeholder="template_xxxxx"
-                          className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-2.5 border text-xs font-mono"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Public Key</label>
-                        <input
-                          type="password"
-                          value={emailPublicKey}
-                          onChange={(e) => setEmailPublicKey(e.target.value)}
-                          placeholder="Public Key (not Private Key)"
-                          className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-2.5 border text-xs font-mono"
-                        />
-                      </div>
+                        <p className="mt-1.5 text-xs text-gray-500">
+                          Payments collected from the cart will be sent to this PayPal account.
+                        </p>
                     </div>
                   </div>
 
@@ -665,8 +586,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                      </div>
                      <p className="text-xs text-gray-500 mb-4">
                        Connect your Google Drive to backup and restore your shop data (Products, Reviews, Users).
-                       <br/>
-                       <span className="text-amber-600 font-medium">Note: You must configure the Google Client ID above first.</span>
                      </p>
                      
                      <div className="flex items-center gap-3">
@@ -711,25 +630,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <Check className="w-3 h-3 mr-1" /> Backup Saved!
                             </span>
                         )}
-                        
-                        {backupStatus === 'success-restore' && (
-                            <span className="text-blue-600 text-xs font-bold flex items-center animate-fadeIn">
-                                <RefreshCw className="w-3 h-3 mr-1" /> Restored! Reloading...
-                            </span>
-                        )}
-
-                        {backupStatus === 'error' && (
-                            <span className="text-red-600 text-xs font-bold flex items-center animate-fadeIn">
-                                <AlertTriangle className="w-3 h-3 mr-1" /> Action Failed
-                            </span>
-                        )}
                      </div>
                   </div>
 
                   <div className="pt-4 flex items-center justify-between border-t border-gray-100 mt-6">
                      {showSaveMessage ? (
                        <span className="text-green-600 font-medium text-sm flex items-center">
-                         <Save className="w-4 h-4 mr-1" /> Saved to browser! Reloading...
+                         <Save className="w-4 h-4 mr-1" /> Settings Saved!
                        </span>
                      ) : <span></span>}
                      
@@ -741,10 +648,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </button>
                   </div>
                 </form>
-             </div>
-             
-             <div className="mt-6 text-center text-xs text-gray-400">
-               <p>Keys are stored locally in your browser for convenience.</p>
              </div>
           </div>
         )}

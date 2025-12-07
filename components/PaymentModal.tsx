@@ -21,8 +21,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
   const handlePayPalClick = () => {
     setStep('processing');
     
-    // Construct PayPal URL for the specific business email
-    const businessEmail = 'ayubshaaban040@gmail.com';
+    // Retrieve PayPal email from storage or use default
+    const savedEmail = localStorage.getItem('GLAZE_PAYPAL_EMAIL');
+    const businessEmail = savedEmail && savedEmail.trim() !== '' ? savedEmail : 'ayubshaaban040@gmail.com';
+    
     const paypalUrl = new URL('https://www.paypal.com/cgi-bin/webscr');
     paypalUrl.searchParams.append('cmd', '_xclick');
     paypalUrl.searchParams.append('business', businessEmail);
@@ -34,7 +36,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
     // Open PayPal in a new tab
     window.open(paypalUrl.toString(), '_blank');
 
-    // Simulate completion flow in the app (since we can't track the external tab perfectly without a backend)
+    // Simulate completion flow in the app
+    // In a real app with backend, we would wait for an IPN or webhook.
+    // For a static site, we assume success if they clicked and wait a moment.
     setTimeout(() => {
       setStep('success');
       // Close modal after showing success message

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, Loader2, ShieldCheck, ExternalLink, Smartphone, DollarSign, CreditCard, MapPin, User, Mail, Phone } from 'lucide-react';
+import { X, Check, Loader2, ShieldCheck, ExternalLink, Smartphone, DollarSign, CreditCard, MapPin, User, Mail, Phone, MessageCircle } from 'lucide-react';
 import { ShippingDetails } from '../types';
 
 interface PaymentModalProps {
@@ -26,21 +26,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, user, onClos
     city: ''
   });
 
-  const [phoneNumber, setPhoneNumber] = useState(''); // Specific for MPesa paybill
+  const [mpesaMessage, setMpesaMessage] = useState('');
   const [mpesaError, setMpesaError] = useState('');
-  const [isRealPaymentEnabled, setIsRealPaymentEnabled] = useState(false);
-
-  // Check for IntaSend Configuration
-  useEffect(() => {
-    const intaSendKey = localStorage.getItem('GLAZE_INTASEND_KEY');
-    setIsRealPaymentEnabled(!!intaSendKey && intaSendKey.length > 5);
-  }, [isOpen]);
 
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
         setStep('SHIPPING');
-        setPhoneNumber('');
+        setMpesaMessage('');
         setMpesaError('');
         // Prefill if user exists
         if (user) {
@@ -88,80 +81,38 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, user, onClos
     }, 5000); 
   };
 
-  const handleMpesaClick = (e: React.FormEvent) => {
+  const handleManualMpesaComplete = (e: React.FormEvent) => {
     e.preventDefault();
-    setMpesaError('');
-
-    // IF REAL PAYMENT ENABLED via INTASEND
-    if (isRealPaymentEnabled) {
-        const intaSendKey = localStorage.getItem('GLAZE_INTASEND_KEY') || '';
-        const isLive = localStorage.getItem('GLAZE_INTASEND_LIVE') === 'true';
-        
-        if ((window as any).IntaSend) {
-            try {
-                const intasend = new (window as any).IntaSend({
-                    publicAPIKey: intaSendKey,
-                    live: isLive
-                });
-
-                intasend.on("COMPLETE", (results: any) => {
-                    console.log("Payment Successful", results);
-                    setStep('SUCCESS');
-                    setTimeout(() => {
-                        onSuccess('MPESA', shipping);
-                        onClose();
-                    }, 3000);
-                });
-
-                intasend.on("FAILED", (results: any) => {
-                    console.error("Payment Failed", results);
-                    setMpesaError("Payment failed or cancelled.");
-                });
-
-                // Launch the Widget
-                intasend.run({
-                    amount: total * 130, // Convert roughly to KES
-                    currency: "KES",
-                    email: shipping.email || "customer@example.com"
-                });
-                
-                return;
-            } catch (err) {
-                console.error("IntaSend Error", err);
-                setMpesaError("Could not initialize payment gateway.");
-            }
-        }
-    }
-
-    // FALLBACK: SIMULATION MODE
-    const cleanPhone = phoneNumber.replace(/\D/g, '');
-    if (cleanPhone.length < 9 || cleanPhone.length > 13) {
-        setMpesaError('Please enter a valid phone number (e.g., 0712...)');
+    if(!mpesaMessage.trim()) {
+        setMpesaError('Please paste the M-Pesa confirmation message.');
         return;
     }
 
     setStep('PROCESSING');
 
-    // Simulate STK Push Delay
+    // Construct WhatsApp Link
+    const adminPhone = '254707425282';
+    const text = encodeURIComponent(
+        `*New Web Order*\n` +
+        `----------------\n` +
+        `*Customer:* ${shipping.name}\n` + 
+        `*Amount Due:* $${total.toFixed(2)}\n` +
+        `*M-Pesa Message:* ${mpesaMessage}\n\n` +
+        `Please confirm my order.`
+    );
+    const waUrl = `https://wa.me/${adminPhone}?text=${text}`;
+    
+    // Open WhatsApp
+    window.open(waUrl, '_blank');
+
+    // Complete Order in App
     setTimeout(() => {
-        setStep('MPESA_PUSH_SENT');
-        
-        // Simulate User Entering PIN on phone
-        setTimeout(() => {
-            setStep('SUCCESS');
-             setTimeout(() => {
-                onSuccess('MPESA', shipping);
-                onClose();
-            }, 3000);
-        }, 6000); 
-
-    }, 2000);
-  };
-
-  const getMpesaBusinessInfo = () => {
-      const number = localStorage.getItem('GLAZE_MPESA_NUMBER') || '123456';
-      const type = localStorage.getItem('GLAZE_MPESA_TYPE') || 'PAYBILL';
-      return { number, type };
+      setStep('SUCCESS');
+      setTimeout(() => {
+          onSuccess('MPESA', shipping);
+          onClose();
+      }, 2000);
+    }, 1000);
   };
 
   return (
@@ -301,7 +252,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, user, onClos
                              <Smartphone className="w-5 h-5" />
                          </div>
                          <span className="font-bold text-[#39B54A]">
-                             {isRealPaymentEnabled ? 'Mobile / Card' : 'M-Pesa'}
+                             M-Pesa
                          </span>
                      </button>
                   </div>
@@ -317,49 +268,51 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, user, onClos
                             </span>
                         </button>
                       ) : (
-                          <form onSubmit={handleMpesaClick} className="space-y-4">
-                             {/* Show Phone Input ONLY if in simulation mode, otherwise IntaSend handles it */}
-                             {!isRealPaymentEnabled ? (
-                                 <div className="text-left animate-fadeIn">
-                                    <label className="block text-xs font-medium text-gray-700 mb-1 ml-1">M-Pesa Phone Number</label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">🇰🇪 +254</span>
-                                        <input 
-                                            type="tel"
-                                            placeholder="712 345 678"
-                                            value={phoneNumber}
-                                            onChange={(e) => setPhoneNumber(e.target.value)}
-                                            className="w-full pl-16 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#39B54A] focus:border-[#39B54A] outline-none transition-all font-mono"
-                                            required
-                                        />
+                          <div className="animate-fadeIn">
+                             {/* Manual Instructions */}
+                             <div className="bg-green-50 rounded-xl p-4 border border-green-100 text-left mb-4">
+                                <h4 className="font-bold text-green-800 mb-2 flex items-center">
+                                    <Smartphone className="w-4 h-4 mr-1" /> Lipa na M-Pesa
+                                </h4>
+                                <div className="space-y-1 text-sm text-green-900 font-mono">
+                                    <div className="flex justify-between border-b border-green-200 pb-1">
+                                        <span>Paybill:</span>
+                                        <span className="font-bold">303030</span>
                                     </div>
-                                    {mpesaError && <p className="text-red-500 text-xs mt-1 ml-1">{mpesaError}</p>}
-                                    <button
-                                        type="submit"
-                                        className="w-full flex items-center justify-center bg-[#39B54A] hover:bg-[#32a342] text-white font-bold py-3.5 px-4 rounded-full transition-colors shadow-sm mt-4"
-                                    >
-                                        Pay with M-Pesa
-                                    </button>
+                                    <div className="flex justify-between pt-1">
+                                        <span>Account No:</span>
+                                        <span className="font-bold">2051895579</span>
+                                    </div>
+                                </div>
+                             </div>
+
+                             <form onSubmit={handleManualMpesaComplete} className="space-y-3">
+                                 <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1 text-left">
+                                        Paste M-Pesa Message
+                                    </label>
+                                    <textarea
+                                        placeholder="PASTE M-PESA MESSAGE HERE..."
+                                        value={mpesaMessage}
+                                        onChange={(e) => setMpesaMessage(e.target.value)}
+                                        className="w-full p-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#39B54A] focus:border-[#39B54A] outline-none transition-all text-sm h-20 resize-none"
+                                        required
+                                    />
+                                    {mpesaError && <p className="text-red-500 text-xs mt-1 text-left">{mpesaError}</p>}
                                  </div>
-                             ) : (
-                                 <div className="text-center py-4 bg-green-50 rounded-xl border border-green-100 animate-fadeIn">
-                                     <div className="flex justify-center mb-2 space-x-2">
-                                         <Smartphone className="w-5 h-5 text-green-600" />
-                                         <CreditCard className="w-5 h-5 text-green-600" />
-                                     </div>
-                                     <p className="text-sm text-green-800 mb-4 px-4">
-                                         Secure payment via IntaSend (MPesa STK Push, Card, Bitcoin)
-                                     </p>
-                                     <button
-                                        type="submit"
-                                        className="w-full max-w-xs mx-auto flex items-center justify-center bg-[#39B54A] hover:bg-[#32a342] text-white font-bold py-3.5 px-4 rounded-full transition-colors shadow-sm"
-                                    >
-                                        Proceed to Secure Payment
-                                    </button>
-                                     {mpesaError && <p className="text-red-500 text-xs mt-2">{mpesaError}</p>}
-                                 </div>
-                             )}
-                          </form>
+                                 
+                                 <button
+                                    type="submit"
+                                    className="w-full flex items-center justify-center bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3.5 px-4 rounded-full transition-colors shadow-sm"
+                                >
+                                    <MessageCircle className="w-5 h-5 mr-2" />
+                                    Verify on WhatsApp
+                                </button>
+                                <p className="text-[10px] text-gray-500 text-center">
+                                    This will open WhatsApp to send details to 0707425282
+                                </p>
+                             </form>
+                          </div>
                       )}
                   </div>
                   
@@ -374,35 +327,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, user, onClos
             {/* Step: Processing (Both) */}
             {step === 'PROCESSING' && (
               <div className="py-12 flex flex-col items-center justify-center animate-fadeIn">
-                <Loader2 className={`w-12 h-12 animate-spin mb-4 ${method === 'MPESA' ? 'text-[#39B54A]' : 'text-pink-500'}`} />
+                <Loader2 className={`w-12 h-12 animate-spin mb-4 ${method === 'MPESA' ? 'text-[#25D366]' : 'text-pink-500'}`} />
                 <h3 className="text-lg font-medium text-gray-900">
-                    {method === 'MPESA' ? 'Sending Request...' : 'Redirecting to PayPal...'}
+                    {method === 'MPESA' ? 'Opening WhatsApp...' : 'Redirecting to PayPal...'}
                 </h3>
                 <p className="text-sm text-gray-500 mt-2">Please wait a moment.</p>
               </div>
-            )}
-
-            {/* Step: MPesa Push Sent */}
-            {step === 'MPESA_PUSH_SENT' && (
-                <div className="py-8 flex flex-col items-center justify-center animate-fadeIn">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
-                        <Smartphone className="w-8 h-8 text-[#39B54A]" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">Check your phone</h3>
-                    <p className="text-gray-600 mb-6 max-w-xs mx-auto">
-                        An STK push has been sent to <b>{phoneNumber || 'your phone'}</b>. 
-                        Please enter your M-Pesa PIN to complete the transaction.
-                    </p>
-                    <div className="bg-gray-50 p-3 rounded-lg text-xs text-gray-500 border border-gray-200 inline-block">
-                        <p className="font-bold text-gray-700 mb-1 uppercase tracking-wider">Business Details</p>
-                        <p>{getMpesaBusinessInfo().type.replace('_', ' ')}: {getMpesaBusinessInfo().number}</p>
-                        <p>Account: GLAZE</p>
-                        <p>Amount: KES {(total * 130).toFixed(0)} (Approx)</p>
-                    </div>
-                    <div className="mt-8 flex items-center gap-2 text-xs text-gray-400">
-                        <Loader2 className="w-3 h-3 animate-spin" /> Waiting for payment confirmation...
-                    </div>
-                </div>
             )}
 
             {/* Step: Success */}
@@ -411,8 +341,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, user, onClos
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6">
                   <Check className="w-8 h-8 text-green-600" />
                 </div>
-                <h3 className="text-xl font-medium text-gray-900 mb-2">Payment Received</h3>
-                <p className="text-gray-500">Thank you for shopping with Glaze.</p>
+                <h3 className="text-xl font-medium text-gray-900 mb-2">Order Received</h3>
+                <p className="text-gray-500 max-w-xs mx-auto">
+                    {method === 'MPESA' 
+                        ? 'Please complete the verification on WhatsApp to finalize your order.' 
+                        : 'Thank you for shopping with Glaze.'}
+                </p>
               </div>
             )}
             

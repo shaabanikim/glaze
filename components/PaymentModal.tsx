@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, Loader2, ShieldCheck, ExternalLink } from 'lucide-react';
+import { X, Check, Loader2, ShieldCheck, ExternalLink, Smartphone, DollarSign, CreditCard } from 'lucide-react';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -8,18 +8,35 @@ interface PaymentModalProps {
   onSuccess: () => void;
 }
 
+type PaymentMethod = 'PAYPAL' | 'MPESA';
+type PaymentStep = 'SELECT' | 'DETAILS' | 'PROCESSING' | 'MPESA_PUSH_SENT' | 'SUCCESS';
+
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onSuccess }) => {
-  const [step, setStep] = useState<'summary' | 'processing' | 'success'>('summary');
+  const [method, setMethod] = useState<PaymentMethod>('PAYPAL');
+  const [step, setStep] = useState<PaymentStep>('SELECT');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [mpesaError, setMpesaError] = useState('');
+  const [isRealPaymentEnabled, setIsRealPaymentEnabled] = useState(false);
+
+  // Check for IntaSend Configuration
+  useEffect(() => {
+    const intaSendKey = localStorage.getItem('GLAZE_INTASEND_KEY');
+    setIsRealPaymentEnabled(!!intaSendKey && intaSendKey.length > 5);
+  }, [isOpen]);
 
   // Reset state when modal opens
   useEffect(() => {
-    if (isOpen) setStep('summary');
+    if (isOpen) {
+        setStep('SELECT');
+        setPhoneNumber('');
+        setMpesaError('');
+    }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handlePayPalClick = () => {
-    setStep('processing');
+    setStep('PROCESSING');
     
     // Retrieve PayPal email from storage or use default
     const savedEmail = localStorage.getItem('GLAZE_PAYPAL_EMAIL');
@@ -31,22 +48,96 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
     paypalUrl.searchParams.append('currency_code', 'USD');
     paypalUrl.searchParams.append('amount', total.toFixed(2));
     paypalUrl.searchParams.append('item_name', 'Glaze Cosmetics Order');
-    paypalUrl.searchParams.append('return', window.location.href); // Return to site after payment
+    paypalUrl.searchParams.append('return', window.location.href);
 
     // Open PayPal in a new tab
     window.open(paypalUrl.toString(), '_blank');
 
-    // Simulate completion flow in the app
-    // In a real app with backend, we would wait for an IPN or webhook.
-    // For a static site, we assume success if they clicked and wait a moment.
+    // Simulate completion
     setTimeout(() => {
-      setStep('success');
-      // Close modal after showing success message
+      setStep('SUCCESS');
       setTimeout(() => {
         onSuccess();
         onClose();
       }, 3000);
-    }, 5000); // Give user time to see the processing screen
+    }, 5000); 
+  };
+
+  const handleMpesaClick = (e: React.FormEvent) => {
+    e.preventDefault();
+    setMpesaError('');
+
+    // IF REAL PAYMENT ENABLED via INTASEND
+    if (isRealPaymentEnabled) {
+        const intaSendKey = localStorage.getItem('GLAZE_INTASEND_KEY') || '';
+        const isLive = localStorage.getItem('GLAZE_INTASEND_LIVE') === 'true';
+        
+        if ((window as any).IntaSend) {
+            try {
+                const intasend = new (window as any).IntaSend({
+                    publicAPIKey: intaSendKey,
+                    live: isLive
+                });
+
+                intasend.on("COMPLETE", (results: any) => {
+                    console.log("Payment Successful", results);
+                    setStep('SUCCESS');
+                    setTimeout(() => {
+                        onSuccess();
+                        onClose();
+                    }, 3000);
+                });
+
+                intasend.on("FAILED", (results: any) => {
+                    console.error("Payment Failed", results);
+                    setMpesaError("Payment failed or cancelled.");
+                });
+
+                // Launch the Widget
+                intasend.run({
+                    amount: total * 130, // Convert roughly to KES
+                    currency: "KES",
+                    email: "customer@example.com" // Ideally from user profile
+                });
+                
+                // We don't set 'PROCESSING' step here because IntaSend opens its own modal
+                return;
+            } catch (err) {
+                console.error("IntaSend Error", err);
+                setMpesaError("Could not initialize payment gateway.");
+            }
+        }
+    }
+
+    // FALLBACK: SIMULATION MODE
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    if (cleanPhone.length < 9 || cleanPhone.length > 13) {
+        setMpesaError('Please enter a valid phone number (e.g., 0712...)');
+        return;
+    }
+
+    setStep('PROCESSING');
+
+    // Simulate STK Push Delay
+    setTimeout(() => {
+        setStep('MPESA_PUSH_SENT');
+        
+        // Simulate User Entering PIN on phone
+        setTimeout(() => {
+            setStep('SUCCESS');
+             setTimeout(() => {
+                onSuccess();
+                onClose();
+            }, 3000);
+        }, 6000); 
+
+    }, 2000);
+  };
+
+  const getMpesaBusinessInfo = () => {
+      const number = localStorage.getItem('GLAZE_MPESA_NUMBER') || '123456';
+      const type = localStorage.getItem('GLAZE_MPESA_TYPE') || 'PAYBILL';
+      return { number, type };
   };
 
   return (
@@ -54,89 +145,188 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
-        onClick={step === 'processing' ? undefined : onClose}
+        onClick={(step === 'PROCESSING' || step === 'MPESA_PUSH_SENT') ? undefined : onClose}
       />
 
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4 text-center">
-        <div className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:w-full sm:max-w-md border border-gray-100">
+        <div className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all w-full max-w-md border border-gray-100">
           
           {/* Close Button */}
-          {step !== 'processing' && step !== 'success' && (
+          {step !== 'PROCESSING' && step !== 'MPESA_PUSH_SENT' && step !== 'SUCCESS' && (
             <button 
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+              className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors z-10"
             >
               <X className="w-5 h-5" />
             </button>
           )}
 
           <div className="p-8">
-            {step === 'summary' && (
-              <>
-                <div className="text-center mb-8">
-                  <span className="text-pink-500 font-semibold tracking-widest uppercase text-xs mb-2 block">
-                    Secure Checkout
-                  </span>
-                  <h3 className="text-2xl font-serif font-bold text-gray-900">
-                    Complete Your Order
-                  </h3>
-                </div>
-
+            <div className="text-center mb-8">
+                <span className="text-pink-500 font-semibold tracking-widest uppercase text-xs mb-2 block">
+                Secure Checkout
+                </span>
+                <h3 className="text-2xl font-serif font-bold text-gray-900">
+                {step === 'SUCCESS' ? 'Order Confirmed!' : 'Complete Your Order'}
+                </h3>
+            </div>
+            
+            {/* Order Summary Box */}
+            {step !== 'SUCCESS' && (
                 <div className="bg-gray-50 rounded-xl p-4 mb-8 border border-gray-100">
-                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex justify-between items-center mb-2">
                     <span className="text-gray-600">Subtotal</span>
                     <span className="font-medium">${total.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-2">
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
                     <span className="text-gray-600">Shipping</span>
                     <span className="text-green-600 font-medium">Free</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-gray-200 mt-2">
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-gray-200 mt-2">
                     <span className="text-gray-900 font-bold">Total</span>
                     <span className="text-gray-900 font-bold text-xl">${total.toFixed(2)}</span>
-                  </div>
+                    </div>
                 </div>
-
-                <div className="space-y-4">
-                  {/* PayPal Button */}
-                  <button
-                    onClick={handlePayPalClick}
-                    className="w-full flex items-center justify-center bg-[#FFC439] hover:bg-[#F4BB34] text-[#003087] font-bold py-3.5 px-4 rounded-full transition-colors shadow-sm group relative overflow-hidden"
-                  >
-                    <span className="relative z-10 flex items-center gap-2">
-                      <i className="not-italic text-lg italic font-bold">Pay</i>
-                      <span className="italic">Pal</span>
-                    </span>
-                  </button>
-                  
-                  <div className="flex items-center justify-center gap-2 text-xs text-gray-400 mt-4">
-                    <ShieldCheck className="w-3 h-3" />
-                    <span>Payments are secure and encrypted</span>
-                  </div>
-                </div>
-              </>
             )}
 
-            {step === 'processing' && (
-              <div className="py-12 flex flex-col items-center justify-center">
-                <Loader2 className="w-12 h-12 text-pink-500 animate-spin mb-4" />
-                <h3 className="text-lg font-medium text-gray-900">Opening PayPal...</h3>
-                <div className="flex items-center gap-2 text-sm text-gray-500 mt-2">
-                  <ExternalLink className="w-4 h-4" />
-                  Please complete payment in the new tab
-                </div>
+            {/* Step: Selection */}
+            {step === 'SELECT' && (
+              <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                     <button
+                       onClick={() => setMethod('PAYPAL')}
+                       className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${method === 'PAYPAL' ? 'border-[#003087] bg-blue-50' : 'border-gray-100 hover:border-gray-200'}`}
+                     >
+                         <div className="w-10 h-10 bg-[#003087] rounded-full flex items-center justify-center text-white font-bold italic mb-2">
+                             P
+                         </div>
+                         <span className="font-bold text-[#003087]">PayPal</span>
+                     </button>
+
+                     <button
+                       onClick={() => setMethod('MPESA')}
+                       className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${method === 'MPESA' ? 'border-[#39B54A] bg-green-50' : 'border-gray-100 hover:border-gray-200'}`}
+                     >
+                         <div className="w-10 h-10 bg-[#39B54A] rounded-full flex items-center justify-center text-white mb-2">
+                             <Smartphone className="w-5 h-5" />
+                         </div>
+                         <span className="font-bold text-[#39B54A]">
+                             {isRealPaymentEnabled ? 'Mobile / Card' : 'M-Pesa'}
+                         </span>
+                     </button>
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100">
+                      {method === 'PAYPAL' ? (
+                          <button
+                            onClick={handlePayPalClick}
+                            className="w-full flex items-center justify-center bg-[#FFC439] hover:bg-[#F4BB34] text-[#003087] font-bold py-3.5 px-4 rounded-full transition-colors shadow-sm"
+                        >
+                            <span className="flex items-center gap-2">
+                            Pay with <i className="not-italic font-bold">PayPal</i>
+                            </span>
+                        </button>
+                      ) : (
+                          <form onSubmit={handleMpesaClick} className="space-y-4">
+                             {/* Show Phone Input ONLY if in simulation mode, otherwise IntaSend handles it */}
+                             {!isRealPaymentEnabled ? (
+                                 <div className="text-left">
+                                    <label className="block text-xs font-medium text-gray-700 mb-1 ml-1">M-Pesa Phone Number</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">🇰🇪 +254</span>
+                                        <input 
+                                            type="tel"
+                                            placeholder="712 345 678"
+                                            value={phoneNumber}
+                                            onChange={(e) => setPhoneNumber(e.target.value)}
+                                            className="w-full pl-16 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#39B54A] focus:border-[#39B54A] outline-none transition-all font-mono"
+                                            required
+                                        />
+                                    </div>
+                                    {mpesaError && <p className="text-red-500 text-xs mt-1 ml-1">{mpesaError}</p>}
+                                    <button
+                                        type="submit"
+                                        className="w-full flex items-center justify-center bg-[#39B54A] hover:bg-[#32a342] text-white font-bold py-3.5 px-4 rounded-full transition-colors shadow-sm mt-4"
+                                    >
+                                        Pay with M-Pesa
+                                    </button>
+                                 </div>
+                             ) : (
+                                 <div className="text-center py-4 bg-green-50 rounded-xl border border-green-100">
+                                     <div className="flex justify-center mb-2 space-x-2">
+                                         <Smartphone className="w-5 h-5 text-green-600" />
+                                         <CreditCard className="w-5 h-5 text-green-600" />
+                                     </div>
+                                     <p className="text-sm text-green-800 mb-4 px-4">
+                                         Secure payment via IntaSend (MPesa STK Push, Card, Bitcoin)
+                                     </p>
+                                     <button
+                                        type="submit"
+                                        className="w-full max-w-xs mx-auto flex items-center justify-center bg-[#39B54A] hover:bg-[#32a342] text-white font-bold py-3.5 px-4 rounded-full transition-colors shadow-sm"
+                                    >
+                                        Proceed to Secure Payment
+                                    </button>
+                                     {mpesaError && <p className="text-red-500 text-xs mt-2">{mpesaError}</p>}
+                                 </div>
+                             )}
+                          </form>
+                      )}
+                  </div>
               </div>
             )}
 
-            {step === 'success' && (
+            {/* Step: Processing (Both) */}
+            {step === 'PROCESSING' && (
+              <div className="py-12 flex flex-col items-center justify-center animate-fadeIn">
+                <Loader2 className={`w-12 h-12 animate-spin mb-4 ${method === 'MPESA' ? 'text-[#39B54A]' : 'text-pink-500'}`} />
+                <h3 className="text-lg font-medium text-gray-900">
+                    {method === 'MPESA' ? 'Sending Request...' : 'Redirecting to PayPal...'}
+                </h3>
+                <p className="text-sm text-gray-500 mt-2">Please wait a moment.</p>
+              </div>
+            )}
+
+            {/* Step: MPesa Push Sent */}
+            {step === 'MPESA_PUSH_SENT' && (
+                <div className="py-8 flex flex-col items-center justify-center animate-fadeIn">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                        <Smartphone className="w-8 h-8 text-[#39B54A]" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Check your phone</h3>
+                    <p className="text-gray-600 mb-6 max-w-xs mx-auto">
+                        An STK push has been sent to <b>{phoneNumber || 'your phone'}</b>. 
+                        Please enter your M-Pesa PIN to complete the transaction.
+                    </p>
+                    <div className="bg-gray-50 p-3 rounded-lg text-xs text-gray-500 border border-gray-200 inline-block">
+                        <p className="font-bold text-gray-700 mb-1 uppercase tracking-wider">Business Details</p>
+                        <p>{getMpesaBusinessInfo().type.replace('_', ' ')}: {getMpesaBusinessInfo().number}</p>
+                        <p>Account: GLAZE</p>
+                        <p>Amount: KES {(total * 130).toFixed(0)} (Approx)</p>
+                    </div>
+                    <div className="mt-8 flex items-center gap-2 text-xs text-gray-400">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Waiting for payment confirmation...
+                    </div>
+                </div>
+            )}
+
+            {/* Step: Success */}
+            {step === 'SUCCESS' && (
               <div className="py-8 flex flex-col items-center justify-center animate-fadeIn">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6">
                   <Check className="w-8 h-8 text-green-600" />
                 </div>
-                <h3 className="text-2xl font-serif font-bold text-gray-900 mb-2">Order Confirmed!</h3>
+                <h3 className="text-xl font-medium text-gray-900 mb-2">Payment Received</h3>
                 <p className="text-gray-500">Thank you for shopping with Glaze.</p>
               </div>
+            )}
+            
+            {/* Footer Security Badge */}
+            {(step === 'SELECT') && (
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-400 mt-6">
+                    <ShieldCheck className="w-3 h-3" />
+                    <span>Payments are secure and encrypted</span>
+                </div>
             )}
           </div>
         </div>

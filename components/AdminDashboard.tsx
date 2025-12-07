@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle, Mail, Cloud, UploadCloud, Loader2, DownloadCloud, RefreshCw, ExternalLink } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle, Mail, Cloud, UploadCloud, Loader2, DownloadCloud, RefreshCw, ExternalLink, Smartphone, CreditCard } from 'lucide-react';
 import { Product } from '../types';
 
 interface AdminDashboardProps {
@@ -23,7 +23,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Settings State
   const [settingsApiKey, setSettingsApiKey] = useState('');
   const [settingsClientId, setSettingsClientId] = useState('');
+  
+  // Payment Settings
   const [paypalEmail, setPaypalEmail] = useState('');
+  const [mpesaBusinessNumber, setMpesaBusinessNumber] = useState('');
+  const [mpesaType, setMpesaType] = useState('PAYBILL');
+  const [intaSendKey, setIntaSendKey] = useState('');
+  const [intaSendLive, setIntaSendLive] = useState(false);
   
   // EmailJS Settings
   const [emailServiceId, setEmailServiceId] = useState('');
@@ -43,6 +49,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setSettingsApiKey(localStorage.getItem('GLAZE_API_KEY') || process.env.API_KEY || '');
     setSettingsClientId(localStorage.getItem('GLAZE_GOOGLE_CLIENT_ID') || process.env.GOOGLE_CLIENT_ID || '');
     setPaypalEmail(localStorage.getItem('GLAZE_PAYPAL_EMAIL') || 'ayubshaaban040@gmail.com');
+    
+    // Load MPesa / IntaSend
+    setMpesaBusinessNumber(localStorage.getItem('GLAZE_MPESA_NUMBER') || '123456');
+    setMpesaType(localStorage.getItem('GLAZE_MPESA_TYPE') || 'PAYBILL');
+    setIntaSendKey(localStorage.getItem('GLAZE_INTASEND_KEY') || '');
+    setIntaSendLive(localStorage.getItem('GLAZE_INTASEND_LIVE') === 'true');
     
     // Load EmailJS
     setEmailServiceId(localStorage.getItem('GLAZE_EMAIL_SERVICE_ID') || '');
@@ -101,10 +113,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const cleanServiceId = emailServiceId.trim();
     const cleanTemplateId = emailTemplateId.trim();
     const cleanPublicKey = emailPublicKey.trim();
+    const cleanMpesaNumber = mpesaBusinessNumber.trim();
+    const cleanIntaSendKey = intaSendKey.trim();
 
     localStorage.setItem('GLAZE_API_KEY', cleanApiKey);
     localStorage.setItem('GLAZE_GOOGLE_CLIENT_ID', cleanClientId);
     localStorage.setItem('GLAZE_PAYPAL_EMAIL', cleanPaypalEmail);
+    localStorage.setItem('GLAZE_MPESA_NUMBER', cleanMpesaNumber);
+    localStorage.setItem('GLAZE_MPESA_TYPE', mpesaType);
+    localStorage.setItem('GLAZE_INTASEND_KEY', cleanIntaSendKey);
+    localStorage.setItem('GLAZE_INTASEND_LIVE', String(intaSendLive));
     
     // Save EmailJS
     localStorage.setItem('GLAZE_EMAIL_SERVICE_ID', cleanServiceId);
@@ -115,6 +133,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setSettingsApiKey(cleanApiKey);
     setSettingsClientId(cleanClientId);
     setPaypalEmail(cleanPaypalEmail);
+    setMpesaBusinessNumber(cleanMpesaNumber);
+    setIntaSendKey(cleanIntaSendKey);
     setEmailServiceId(cleanServiceId);
     setEmailTemplateId(cleanTemplateId);
     setEmailPublicKey(cleanPublicKey);
@@ -474,50 +494,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <p className="text-sm text-gray-500">Manage your API keys without redeploying.</p>
                   </div>
                 </div>
-                
-                {/* Instructions Box */}
-                <div className="bg-blue-50 border border-blue-100 rounded-lg p-5 mb-8">
-                  <div className="flex items-start gap-3">
-                    <HelpCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-blue-900 w-full">
-                      <h4 className="font-bold mb-2">Google Drive Connection Checklist:</h4>
-                      <div className="space-y-3">
-                        <div className="bg-white p-3 rounded-lg border border-blue-200">
-                            <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1">Step 1: Copy this exact URL</p>
-                             <div className="flex items-center gap-2">
-                               <code className="bg-gray-100 px-2 py-1.5 rounded text-xs select-all flex-1 font-mono break-all border border-gray-200">
-                                 {window.location.origin}
-                               </code>
-                               <button 
-                                 onClick={copyOrigin}
-                                 className="p-1.5 hover:bg-blue-100 rounded text-blue-600 flex-shrink-0"
-                                 title="Copy URL"
-                               >
-                                 {copiedOrigin ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                               </button>
-                             </div>
-                        </div>
-
-                        <div className="bg-white p-3 rounded-lg border border-blue-200">
-                            <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1">Step 2: Go to Google Cloud Console</p>
-                            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="flex items-center text-blue-600 hover:underline font-medium">
-                                Open Credentials Page <ExternalLink className="w-3 h-3 ml-1" />
-                            </a>
-                            <ul className="list-disc list-inside mt-2 space-y-1 text-gray-700">
-                                <li>Edit your <b>OAuth 2.0 Client ID</b>.</li>
-                                <li>
-                                    Find <b>"Authorized JavaScript origins"</b>.
-                                    <span className="block text-red-600 font-bold mt-1 text-[10px] bg-red-50 p-1 rounded border border-red-100">
-                                        ⚠️ DO NOT PASTE INTO "REDIRECT URIS". IT WILL FAIL.
-                                    </span>
-                                </li>
-                                <li>Paste the URL there. <b>Make sure there is NO slash (/) at the end.</b></li>
-                            </ul>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
                 <form onSubmit={handleSaveSettings} className="space-y-6">
                   
@@ -555,82 +531,86 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
 
-                  {/* PayPal Settings */}
+                  {/* Payment Settings */}
                   <div className="border-t border-gray-200 pt-6 mt-6">
                     <div className="flex items-center gap-2 mb-4">
                         <DollarSign className="w-5 h-5 text-gray-400" />
                         <h3 className="text-md font-bold text-gray-900">Payment Settings</h3>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">PayPal Business Email</label>
-                        <input
-                        type="email"
-                        value={paypalEmail}
-                        onChange={(e) => setPaypalEmail(e.target.value)}
-                        placeholder="your-business-email@example.com"
-                        className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-3 border text-sm"
-                        />
-                        <p className="mt-1.5 text-xs text-gray-500">
-                          Payments collected from the cart will be sent to this PayPal account.
-                        </p>
-                    </div>
-                  </div>
-
-                  {/* GOOGLE DRIVE BACKUP */}
-                  <div className="border-t border-gray-200 pt-6 mt-6">
-                     <div className="flex items-center gap-2 mb-4">
-                        <div className="p-1.5 bg-green-50 rounded-lg">
-                          <Cloud className="w-5 h-5 text-green-600" />
+                    
+                    {/* IntaSend REAL Payment Config */}
+                    <div className="bg-green-50 border border-green-100 rounded-lg p-4 mb-6">
+                        <div className="flex items-start gap-3">
+                            <CreditCard className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                            <div className="w-full">
+                                <h4 className="font-bold text-sm text-green-900 mb-2">Enable Real MPesa & Card Payments</h4>
+                                <p className="text-xs text-green-800 mb-3">
+                                    To process real payments, create an account at <a href="https://intasend.com" target="_blank" className="underline font-bold">IntaSend.com</a> and get your Publishable Key.
+                                </p>
+                                
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-xs font-medium text-green-900 mb-1">IntaSend Public Key</label>
+                                        <input
+                                            type="text"
+                                            value={intaSendKey}
+                                            onChange={(e) => setIntaSendKey(e.target.value)}
+                                            placeholder="ISPubKey_Live_..."
+                                            className="w-full rounded border-green-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-xs p-2"
+                                        />
+                                    </div>
+                                    <div className="flex items-center">
+                                        <input
+                                            id="live-mode"
+                                            type="checkbox"
+                                            checked={intaSendLive}
+                                            onChange={(e) => setIntaSendLive(e.target.checked)}
+                                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                                        />
+                                        <label htmlFor="live-mode" className="ml-2 block text-xs text-green-900">
+                                            Enable Live Mode (Uncheck for Test Mode)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <h3 className="text-md font-bold text-gray-900">Google Drive Sync</h3>
-                     </div>
-                     <p className="text-xs text-gray-500 mb-4">
-                       Connect your Google Drive to backup and restore your shop data (Products, Reviews, Users).
-                     </p>
-                     
-                     <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={handleBackupToDrive}
-                          disabled={backupStatus === 'uploading' || backupStatus === 'restoring'}
-                          className={`flex items-center px-4 py-2 text-xs font-medium rounded-lg border shadow-sm transition-all
-                            ${backupStatus === 'uploading' 
-                                ? 'bg-gray-100 text-gray-400 border-gray-200' 
-                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-green-400'
-                             }`}
-                        >
-                            {backupStatus === 'uploading' ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                                <UploadCloud className="w-4 h-4 mr-2" />
-                            )}
-                            {backupStatus === 'uploading' ? 'Backing up...' : 'Backup to Drive'}
-                        </button>
+                    </div>
 
-                         <button
-                          type="button"
-                          onClick={handleRestoreFromDrive}
-                          disabled={backupStatus === 'uploading' || backupStatus === 'restoring'}
-                          className={`flex items-center px-4 py-2 text-xs font-medium rounded-lg border shadow-sm transition-all
-                            ${backupStatus === 'restoring' 
-                                ? 'bg-gray-100 text-gray-400 border-gray-200' 
-                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-blue-400'
-                             }`}
-                        >
-                            {backupStatus === 'restoring' ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                                <DownloadCloud className="w-4 h-4 mr-2" />
-                            )}
-                            {backupStatus === 'restoring' ? 'Restoring...' : 'Restore from Drive'}
-                        </button>
+                    <div className="grid md:grid-cols-2 gap-6 opacity-80">
+                        {/* PayPal */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">PayPal Business Email</label>
+                            <input
+                            type="email"
+                            value={paypalEmail}
+                            onChange={(e) => setPaypalEmail(e.target.value)}
+                            placeholder="your-business-email@example.com"
+                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-3 border text-sm"
+                            />
+                        </div>
 
-                        {backupStatus === 'success' && (
-                            <span className="text-green-600 text-xs font-bold flex items-center animate-fadeIn">
-                                <Check className="w-3 h-3 mr-1" /> Backup Saved!
-                            </span>
-                        )}
-                     </div>
+                        {/* MPesa Manual Info (Fallback) */}
+                        <div>
+                             <label className="block text-sm font-medium text-gray-700 mb-2">MPesa Paybill (Simulation Info)</label>
+                             <div className="flex gap-2">
+                                <input
+                                type="text"
+                                value={mpesaBusinessNumber}
+                                onChange={(e) => setMpesaBusinessNumber(e.target.value)}
+                                placeholder="e.g. 123456"
+                                className="w-full flex-1 rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-3 border text-sm"
+                                />
+                                <select 
+                                  value={mpesaType}
+                                  onChange={(e) => setMpesaType(e.target.value)}
+                                  className="rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 border text-sm px-2"
+                                >
+                                    <option value="PAYBILL">Paybill</option>
+                                    <option value="BUY_GOODS">Buy Goods</option>
+                                </select>
+                             </div>
+                        </div>
+                    </div>
                   </div>
 
                   <div className="pt-4 flex items-center justify-between border-t border-gray-100 mt-6">

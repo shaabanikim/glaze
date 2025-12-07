@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle, Mail, Cloud, UploadCloud, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle, Mail, Cloud, UploadCloud, Loader2, DownloadCloud, RefreshCw } from 'lucide-react';
 import { Product } from '../types';
 
 interface AdminDashboardProps {
@@ -30,7 +30,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [emailPublicKey, setEmailPublicKey] = useState('');
 
   // Backup State
-  const [backupStatus, setBackupStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [backupStatus, setBackupStatus] = useState<'idle' | 'uploading' | 'restoring' | 'success' | 'success-restore' | 'error'>('idle');
 
   const [showSaveMessage, setShowSaveMessage] = useState(false);
   const [copiedOrigin, setCopiedOrigin] = useState(false);
@@ -109,16 +109,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setTimeout(() => setCopiedOrigin(false), 2000);
   };
 
-  // --- GOOGLE DRIVE BACKUP LOGIC ---
-  const handleBackupToDrive = () => {
+  // --- GOOGLE DRIVE INTEGRATION ---
+  
+  const initGoogleAuth = (callback: (token: string) => void) => {
     if (!settingsClientId) {
         alert("Please configure and save your Google Client ID first.");
         return;
     }
-
-    setBackupStatus('uploading');
-
-    // Use the existing Google Identity Services library loaded in index.html
+    
     const google = (window as any).google;
     if (!google) {
         alert("Google scripts not loaded.");
@@ -128,10 +126,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     const client = google.accounts.oauth2.initTokenClient({
         client_id: settingsClientId,
+        // 'drive.file' allows us to access only files created by this app
         scope: 'https://www.googleapis.com/auth/drive.file',
-        callback: async (tokenResponse: any) => {
+        callback: (tokenResponse: any) => {
             if (tokenResponse && tokenResponse.access_token) {
-                await uploadDataToDrive(tokenResponse.access_token);
+                callback(tokenResponse.access_token);
             } else {
                 setBackupStatus('error');
             }
@@ -139,6 +138,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
 
     client.requestAccessToken();
+  };
+
+  const handleBackupToDrive = () => {
+    setBackupStatus('uploading');
+    initGoogleAuth((token) => uploadDataToDrive(token));
+  };
+
+  const handleRestoreFromDrive = () => {
+    setBackupStatus('restoring');
+    initGoogleAuth((token) => restoreDataFromDrive(token));
   };
 
   const uploadDataToDrive = async (accessToken: string) => {
@@ -190,6 +199,51 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
     } catch (e) {
         console.error('Backup error:', e);
+        setBackupStatus('error');
+    }
+  };
+
+  const restoreDataFromDrive = async (accessToken: string) => {
+    try {
+        // 1. Search for latest backup file created by this app
+        const searchRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=name contains 'glaze_backup_' and trashed = false&orderBy=createdTime desc&pageSize=1`,
+            { headers: { 'Authorization': `Bearer ${accessToken}` } }
+        );
+        const searchData = await searchRes.json();
+        
+        if (!searchData.files || searchData.files.length === 0) {
+            alert("No backup files found in your Drive created by this app.");
+            setBackupStatus('idle');
+            return;
+        }
+
+        const fileId = searchData.files[0].id;
+
+        // 2. Download file content
+        const fileRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+            { headers: { 'Authorization': `Bearer ${accessToken}` } }
+        );
+        const backup = await fileRes.json();
+
+        // 3. Restore to LocalStorage
+        if (backup.data) {
+            if (backup.data.users) localStorage.setItem('GLAZE_USERS', JSON.stringify(backup.data.users));
+            if (backup.data.products) localStorage.setItem('GLAZE_PRODUCTS', JSON.stringify(backup.data.products));
+            if (backup.data.reviews) localStorage.setItem('GLAZE_REVIEWS', JSON.stringify(backup.data.reviews));
+            
+            setBackupStatus('success-restore');
+            // Reload page to reflect changes
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            throw new Error("Invalid backup format");
+        }
+    } catch (e) {
+        console.error("Restore failed", e);
+        alert("Failed to restore data. See console for details.");
         setBackupStatus('error');
     }
   };
@@ -451,35 +505,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="flex items-start gap-3">
                     <HelpCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                     <div className="text-sm text-blue-900 w-full">
-                      <h4 className="font-bold mb-2">How to enable "Sign in with Google":</h4>
-                      <ol className="list-decimal list-inside space-y-1 ml-1 text-blue-800 mb-4">
-                        <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="underline hover:text-blue-600">Google Cloud Console</a>.</li>
-                        <li>Create a project and go to <b>APIs & Services {'>'} Credentials</b>.</li>
-                        <li>Click <b>Create Credentials {'>'} OAuth client ID</b>.</li>
-                        <li className="font-semibold text-pink-600">
-                          Application type MUST be set to "Web application"
-                          <span className="block text-xs font-normal text-blue-800 mt-1">If you choose Desktop/Mobile, the options won't appear!</span>
+                      <h4 className="font-bold mb-2">How to fix "Error 400: invalid_request" or "Authorization Error":</h4>
+                      <ol className="list-decimal list-inside space-y-2 ml-1 text-blue-800 mb-4">
+                        <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="underline hover:text-blue-600">Google Cloud Console</a> &rarr; Credentials.</li>
+                        <li>Edit your <b>OAuth 2.0 Client ID</b>.</li>
+                        <li>
+                           Look for <b>Authorized JavaScript origins</b>. You MUST add the exact URL below.
+                           <div className="mt-2 p-2 bg-white border border-blue-200 rounded-md">
+                             <div className="flex items-center gap-2">
+                               <code className="bg-gray-100 px-2 py-1 rounded text-xs select-all flex-1 font-mono break-all">{window.location.origin}</code>
+                               <button 
+                                 onClick={copyOrigin}
+                                 className="p-1.5 hover:bg-blue-100 rounded text-blue-600 flex-shrink-0"
+                                 title="Copy URL"
+                               >
+                                 {copiedOrigin ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                               </button>
+                             </div>
+                             <p className="text-[10px] text-red-600 mt-1 font-bold">
+                               ⚠️ IMPORTANT: Do NOT add a slash "/" at the end. Copy it exactly as shown.
+                             </p>
+                           </div>
                         </li>
-                        <li>Look for the section titled <b>"Authorized JavaScript origins"</b>.</li>
-                        <li>Click "ADD URI" and paste the URL below:</li>
-                      </ol>
-                      
-                      {/* Copy URL Helper */}
-                      <div className="flex items-center gap-2 bg-blue-100/50 p-2 rounded-md border border-blue-200">
-                        <code className="flex-1 font-mono text-xs text-blue-800 truncate">
-                          {window.location.origin}
-                        </code>
-                        <button 
-                          onClick={copyOrigin}
-                          className="p-1.5 hover:bg-blue-200 rounded transition-colors text-blue-700"
-                          title="Copy URL"
-                        >
-                          {copiedOrigin ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        </button>
-                      </div>
-
-                      <ol className="list-decimal list-inside space-y-1 ml-1 text-blue-800 mt-4" start={7}>
-                        <li>Click Create. Copy the <b>Client ID</b> and paste it below.</li>
+                        <li>Click <b>Save</b>. It may take 5-10 minutes for changes to propagate.</li>
                       </ol>
 
                       {/* PUBLISH APP NOTICE */}
@@ -487,15 +535,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                          <div className="flex items-start gap-2">
                            <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                            <div>
-                             <p className="font-bold">CRITICAL: Allow Anyone to Login</p>
+                             <p className="font-bold">Still seeing "Access blocked"?</p>
                              <p className="mt-1">
-                               By default, your Google App is in "Testing" mode and only approved emails can log in. 
-                               To let <b>anyone</b> log in:
+                               If your app is in "Testing" mode, only added test users can log in. 
+                               To fix this for everyone:
                              </p>
                              <ul className="list-disc list-inside mt-1 ml-1">
                                <li>Go to <b>"OAuth consent screen"</b> in Google Cloud.</li>
-                               <li>Set User Type to <b>External</b>.</li>
-                               <li>Click the <b>"PUBLISH APP"</b> button.</li>
+                               <li>Click the <b>"PUBLISH APP"</b> button to make it public.</li>
                              </ul>
                            </div>
                          </div>
@@ -614,18 +661,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="p-1.5 bg-green-50 rounded-lg">
                           <Cloud className="w-5 h-5 text-green-600" />
                         </div>
-                        <h3 className="text-md font-bold text-gray-900">Google Drive Backup</h3>
+                        <h3 className="text-md font-bold text-gray-900">Google Drive Sync</h3>
                      </div>
                      <p className="text-xs text-gray-500 mb-4">
-                       Securely backup your Products, Users, and Reviews to your personal Google Drive. 
-                       <br/>This will create a JSON file in your Drive.
+                       Connect your Google Drive to backup and restore your shop data (Products, Reviews, Users).
+                       <br/>
+                       <span className="text-amber-600 font-medium">Note: You must configure the Google Client ID above first.</span>
                      </p>
                      
                      <div className="flex items-center gap-3">
                         <button
                           type="button"
                           onClick={handleBackupToDrive}
-                          disabled={backupStatus === 'uploading'}
+                          disabled={backupStatus === 'uploading' || backupStatus === 'restoring'}
                           className={`flex items-center px-4 py-2 text-xs font-medium rounded-lg border shadow-sm transition-all
                             ${backupStatus === 'uploading' 
                                 ? 'bg-gray-100 text-gray-400 border-gray-200' 
@@ -637,17 +685,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             ) : (
                                 <UploadCloud className="w-4 h-4 mr-2" />
                             )}
-                            {backupStatus === 'uploading' ? 'Backing up...' : 'Backup to Google Drive'}
+                            {backupStatus === 'uploading' ? 'Backing up...' : 'Backup to Drive'}
+                        </button>
+
+                         <button
+                          type="button"
+                          onClick={handleRestoreFromDrive}
+                          disabled={backupStatus === 'uploading' || backupStatus === 'restoring'}
+                          className={`flex items-center px-4 py-2 text-xs font-medium rounded-lg border shadow-sm transition-all
+                            ${backupStatus === 'restoring' 
+                                ? 'bg-gray-100 text-gray-400 border-gray-200' 
+                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-blue-400'
+                             }`}
+                        >
+                            {backupStatus === 'restoring' ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                                <DownloadCloud className="w-4 h-4 mr-2" />
+                            )}
+                            {backupStatus === 'restoring' ? 'Restoring...' : 'Restore from Drive'}
                         </button>
 
                         {backupStatus === 'success' && (
                             <span className="text-green-600 text-xs font-bold flex items-center animate-fadeIn">
-                                <Check className="w-3 h-3 mr-1" /> Backup Successful!
+                                <Check className="w-3 h-3 mr-1" /> Backup Saved!
                             </span>
                         )}
+                        
+                        {backupStatus === 'success-restore' && (
+                            <span className="text-blue-600 text-xs font-bold flex items-center animate-fadeIn">
+                                <RefreshCw className="w-3 h-3 mr-1" /> Restored! Reloading...
+                            </span>
+                        )}
+
                         {backupStatus === 'error' && (
                             <span className="text-red-600 text-xs font-bold flex items-center animate-fadeIn">
-                                <AlertTriangle className="w-3 h-3 mr-1" /> Backup Failed
+                                <AlertTriangle className="w-3 h-3 mr-1" /> Action Failed
                             </span>
                         )}
                      </div>

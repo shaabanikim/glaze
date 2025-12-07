@@ -20,9 +20,17 @@ const INITIAL_REVIEWS: Review[] = [
 ];
 
 const App: React.FC = () => {
-  // Product State (Source of Truth)
-  const [products, setProducts] = useState<Product[]>(PRODUCTS);
-  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
+  // Product State (Source of Truth) with Persistence
+  const [products, setProducts] = useState<Product[]>(() => {
+    const saved = localStorage.getItem('GLAZE_PRODUCTS');
+    return saved ? JSON.parse(saved) : PRODUCTS;
+  });
+
+  // Review State with Persistence
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    const saved = localStorage.getItem('GLAZE_REVIEWS');
+    return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
+  });
   
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -49,6 +57,16 @@ const App: React.FC = () => {
       }
     }
   }, []);
+
+  // Persist Products whenever they change
+  useEffect(() => {
+    localStorage.setItem('GLAZE_PRODUCTS', JSON.stringify(products));
+  }, [products]);
+
+  // Persist Reviews whenever they change
+  useEffect(() => {
+    localStorage.setItem('GLAZE_REVIEWS', JSON.stringify(reviews));
+  }, [reviews]);
 
   const addToCart = (product: Product) => {
     setCart(prev => {

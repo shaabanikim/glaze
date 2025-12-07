@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mail, Lock, ArrowRight, AlertCircle, Settings, User as UserIcon, KeyRound, CheckCircle, ExternalLink } from 'lucide-react';
+import { X, Mail, Lock, ArrowRight, AlertCircle, Settings, User as UserIcon, KeyRound, CheckCircle, ExternalLink, ArrowLeft } from 'lucide-react';
 import { User } from '../types';
 import emailjs from '@emailjs/browser';
 
@@ -8,6 +8,8 @@ interface LoginModalProps {
   onClose: () => void;
   onLogin: (user: User) => void;
 }
+
+type AuthView = 'LOGIN' | 'SIGNUP' | 'VERIFY_SIGNUP' | 'FORGOT_REQUEST' | 'FORGOT_RESET';
 
 // Helper to decode the Google JWT
 const decodeJwt = (token: string) => {
@@ -24,8 +26,7 @@ const decodeJwt = (token: string) => {
 };
 
 const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [verificationStep, setVerificationStep] = useState(false);
+  const [view, setView] = useState<AuthView>('LOGIN');
   const [isLoading, setIsLoading] = useState(false);
   
   // Form State
@@ -35,6 +36,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
   const [otp, setOtp] = useState('');
   const [generatedOtp, setGeneratedOtp] = useState('');
   const [authError, setAuthError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   
   // Google State
   const [googleError, setGoogleError] = useState('');
@@ -49,10 +51,11 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
     setClientId(envId || storageId || '');
   }, [isOpen]);
 
-  // Reset form when switching modes
+  // Reset form when opening/closing
   useEffect(() => {
     setAuthError('');
     setGoogleError('');
+    setSuccessMessage('');
     setIsConfiguring(false);
     if (!isOpen) {
         // Reset inputs on close
@@ -61,14 +64,22 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
         setName('');
         setOtp('');
         setGeneratedOtp('');
-        setIsSignUp(false);
-        setVerificationStep(false);
+        setView('LOGIN');
     }
-  }, [isSignUp, isOpen]);
+  }, [isOpen]);
 
-  // Initialize Google Sign In
+  // Clear errors/messages when view changes
   useEffect(() => {
-    if (!isOpen || !clientId || verificationStep) return;
+    setAuthError('');
+    setSuccessMessage('');
+    setGoogleError('');
+    // Clear specific fields based on transitions if needed
+    if (view === 'LOGIN') setOtp('');
+  }, [view]);
+
+  // Initialize Google Sign In (Only for Login/Signup views)
+  useEffect(() => {
+    if (!isOpen || !clientId || (view !== 'LOGIN' && view !== 'SIGNUP')) return;
     
     // Check if google script is loaded
     if (typeof (window as any).google !== 'undefined') {
@@ -89,7 +100,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
         console.error("Google Sign-In Error", err);
       }
     }
-  }, [isOpen, clientId, verificationStep]);
+  }, [isOpen, clientId, view]);
 
   const handleGoogleCallback = (response: any) => {
     const payload = decodeJwt(response.credential);
@@ -99,7 +110,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
         name: payload.name,
         email: payload.email,
         avatar: payload.picture,
-        isAdmin: false, // Real users start as non-admin
+        isAdmin: false, 
         isVerified: true
       };
       onLogin(newUser);
@@ -118,7 +129,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
 
   if (!isOpen) return null;
 
-  const sendVerificationEmail = async (userEmail: string, userName: string, code: string) => {
+  const sendVerificationEmail = async (userEmail: string, userName: string, code: string, subjectType: 'VERIFY' | 'RESET') => {
       const serviceId = localStorage.getItem('GLAZE_EMAIL_SERVICE_ID');
       const templateId = localStorage.getItem('GLAZE_EMAIL_TEMPLATE_ID');
       const publicKey = localStorage.getItem('GLAZE_EMAIL_PUBLIC_KEY');
@@ -127,7 +138,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
       if (serviceId && templateId && publicKey) {
           try {
               await emailjs.send(serviceId, templateId, {
-                  to_name: userName,
+                  to_name: userName || 'Beauty Lover',
                   to_email: userEmail,
                   otp: code,
               }, publicKey);
@@ -140,8 +151,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
       } else {
           // Fallback to simulation if no keys
           console.warn('EmailJS keys missing. Simulating email.');
+          const subject = subjectType === 'VERIFY' ? 'Verify your account' : 'Reset your password';
           setTimeout(() => {
-            alert(`[DEMO EMAIL SERVER]\n\nTo: ${userEmail}\nFrom: Glaze Cosmetics\nSubject: Verify your account\n\nYour verification code is: ${code}`);
+            alert(`[DEMO EMAIL SERVER]\n\nTo: ${userEmail}\nFrom: Glaze Cosmetics\nSubject: ${subject}\n\nYour verification code is: ${code}`);
           }, 500);
           return true;
       }
@@ -150,81 +162,15 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
-
-    // --- VERIFICATION STEP ---
-    if (verificationStep) {
-        if (!otp) {
-            setAuthError('Please enter the verification code.');
-            return;
-        }
-
-        setIsLoading(true);
-        // Simulate network delay for verification
-        setTimeout(() => {
-            if (otp === generatedOtp) {
-                try {
-                    const users = JSON.parse(localStorage.getItem('GLAZE_USERS') || '{}');
-                    const newUser = {
-                        name,
-                        email,
-                        password,
-                        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=fce7f3&color=db2777&bold=true`,
-                        isAdmin: false,
-                        isVerified: true
-                    };
-                    
-                    // Save to "DB"
-                    users[email] = newUser;
-                    localStorage.setItem('GLAZE_USERS', JSON.stringify(users));
-                    
-                    // Auto login
-                    const { password: _, ...userProfile } = newUser;
-                    onLogin(userProfile);
-                    onClose();
-                } catch(e) {
-                    setAuthError('Failed to create account. Please try again.');
-                }
-            } else {
-                setAuthError('Invalid verification code. Please check your "email".');
-            }
-            setIsLoading(false);
-        }, 800);
-        return;
-    }
-
-    // --- LOGIN / SIGNUP INIT ---
-    if (!email || !password) return;
-    if (isSignUp && !name) return;
-
     setIsLoading(true);
 
     try {
         const users = JSON.parse(localStorage.getItem('GLAZE_USERS') || '{}');
-        
-        if (isSignUp) {
-            if (users[email]) {
-                setAuthError('An account with this email already exists.');
-                setIsLoading(false);
-                return;
-            }
 
-            // Generate OTP for Verification
-            const code = Math.floor(100000 + Math.random() * 900000).toString();
-            setGeneratedOtp(code);
-            
-            // SEND EMAIL (Real or Mock)
-            const sent = await sendVerificationEmail(email, name, code);
-            
-            if (sent) {
-                setVerificationStep(true);
-            }
-            setIsLoading(false);
-
-        } else {
-            // LOGIN LOGIC (Simulated delay)
+        // --- LOGIN ---
+        if (view === 'LOGIN') {
             setTimeout(() => {
                 const user = users[email];
-                
                 if (user && user.password === password) {
                     const { password: _, ...userProfile } = user;
                     onLogin(userProfile);
@@ -235,6 +181,91 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
                 setIsLoading(false);
             }, 800);
         }
+        
+        // --- SIGNUP INIT ---
+        else if (view === 'SIGNUP') {
+            if (users[email]) {
+                setAuthError('An account with this email already exists.');
+                setIsLoading(false);
+                return;
+            }
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            setGeneratedOtp(code);
+            
+            const sent = await sendVerificationEmail(email, name, code, 'VERIFY');
+            if (sent) setView('VERIFY_SIGNUP');
+            setIsLoading(false);
+        }
+
+        // --- VERIFY SIGNUP ---
+        else if (view === 'VERIFY_SIGNUP') {
+             setTimeout(() => {
+                if (otp === generatedOtp) {
+                    const newUser = {
+                        name,
+                        email,
+                        password,
+                        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=fce7f3&color=db2777&bold=true`,
+                        isAdmin: false,
+                        isVerified: true
+                    };
+                    users[email] = newUser;
+                    localStorage.setItem('GLAZE_USERS', JSON.stringify(users));
+                    
+                    const { password: _, ...userProfile } = newUser;
+                    onLogin(userProfile);
+                    onClose();
+                } else {
+                    setAuthError('Invalid verification code.');
+                }
+                setIsLoading(false);
+             }, 800);
+        }
+
+        // --- FORGOT PASSWORD REQUEST ---
+        else if (view === 'FORGOT_REQUEST') {
+            setTimeout(async () => {
+                if (!users[email]) {
+                    setAuthError('No account found with this email.');
+                    setIsLoading(false);
+                    return;
+                }
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                setGeneratedOtp(code);
+                
+                // Get user name for email
+                const userName = users[email].name;
+                const sent = await sendVerificationEmail(email, userName, code, 'RESET');
+                
+                if (sent) setView('FORGOT_RESET');
+                setIsLoading(false);
+            }, 500);
+        }
+
+        // --- FORGOT PASSWORD RESET ---
+        else if (view === 'FORGOT_RESET') {
+             setTimeout(() => {
+                if (otp === generatedOtp) {
+                    if (users[email]) {
+                        users[email].password = password; // Update password
+                        localStorage.setItem('GLAZE_USERS', JSON.stringify(users));
+                        setSuccessMessage('Password reset successfully! Please log in.');
+                        
+                        // Clear sensitive fields and go to login
+                        setPassword('');
+                        setOtp('');
+                        setGeneratedOtp('');
+                        setTimeout(() => setView('LOGIN'), 1500);
+                    } else {
+                         setAuthError('User not found.');
+                    }
+                } else {
+                    setAuthError('Invalid verification code.');
+                }
+                setIsLoading(false);
+             }, 800);
+        }
+
     } catch (err) {
         setAuthError('Something went wrong. Please try again.');
         setIsLoading(false);
@@ -260,8 +291,25 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
   const handleResendCode = async () => {
      const code = Math.floor(100000 + Math.random() * 900000).toString();
      setGeneratedOtp(code);
-     await sendVerificationEmail(email, name, code);
+     const users = JSON.parse(localStorage.getItem('GLAZE_USERS') || '{}');
+     const userName = users[email]?.name || name;
+     const type = view === 'FORGOT_RESET' ? 'RESET' : 'VERIFY';
+     await sendVerificationEmail(email, userName, code, type);
   };
+
+  // Dynamic Content based on View
+  const getHeaderContent = () => {
+      switch(view) {
+          case 'LOGIN': return { subtitle: 'Welcome Back', title: 'Sign In', desc: 'Access your wishlist and order history.' };
+          case 'SIGNUP': return { subtitle: 'Join the Club', title: 'Create Account', desc: 'Sign up to unlock exclusive shades.' };
+          case 'VERIFY_SIGNUP': return { subtitle: 'Verify Email', title: 'Check Your Inbox', desc: `We've sent a code to ${email}.` };
+          case 'FORGOT_REQUEST': return { subtitle: 'Recovery', title: 'Forgot Password?', desc: 'Enter your email to receive a reset code.' };
+          case 'FORGOT_RESET': return { subtitle: 'Recovery', title: 'Reset Password', desc: 'Enter code and your new password.' };
+          default: return { subtitle: '', title: '', desc: '' };
+      }
+  };
+
+  const header = getHeaderContent();
 
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto">
@@ -286,22 +334,18 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
           <div className="p-8">
             <div className="text-center mb-8">
               <span className="text-pink-500 font-semibold tracking-widest uppercase text-xs mb-2 block">
-                {verificationStep ? 'Verify Email' : (isSignUp ? 'Join the Club' : 'Welcome Back')}
+                {header.subtitle}
               </span>
               <h3 className="text-3xl font-serif font-bold text-gray-900 mb-2">
-                {verificationStep ? 'Check Your Inbox' : (isSignUp ? 'Create Account' : 'Sign In')}
+                {header.title}
               </h3>
               <p className="text-gray-500 text-sm">
-                {verificationStep 
-                   ? `We've sent a code to ${email}. Please enter it below.`
-                   : (isSignUp 
-                     ? 'Sign up to unlock exclusive shades and track your orders.' 
-                     : 'Access your wishlist and order history.')}
+                {header.desc}
               </p>
             </div>
 
-            {/* Google Login Container - Only show if not in verification */}
-            {!verificationStep && (
+            {/* Google Login Container - Only on Login/Signup */}
+            {(view === 'LOGIN' || view === 'SIGNUP') && (
                 <>
                     <div className="min-h-[50px] mb-4">
                     {clientId ? (
@@ -325,14 +369,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
                                         Save
                                     </button>
                                 </div>
-                                
-                                {/* HELPER TEXT FOR PUBLIC ACCESS */}
-                                <div className="bg-blue-50 p-2 rounded border border-blue-100 mb-1">
-                                    <p className="text-[10px] text-blue-800 leading-tight text-left">
-                                        <span className="font-bold">Important:</span> To let anyone sign in, go to Google Cloud Console {'>'} OAuth consent screen and set User Type to <span className="font-bold">External</span>, then click <span className="font-bold">PUBLISH APP</span>.
-                                    </p>
-                                </div>
-
                                 <div className="text-right mt-1">
                                     <button onClick={() => setIsConfiguring(false)} className="text-[10px] text-gray-400 hover:text-gray-600">Cancel</button>
                                 </div>
@@ -371,59 +407,78 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
             {/* Auth Form */}
             <form onSubmit={handleAuthSubmit} className="space-y-4">
               
-              {!verificationStep ? (
-                  /* STANDARD FORM */
-                  <>
-                    {isSignUp && (
-                        <div className="animate-fadeIn">
-                            <label className="sr-only">Full Name</label>
-                            <div className="relative">
-                            <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input 
-                                type="text" 
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                placeholder="Full Name"
-                                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
-                                required={isSignUp}
-                            />
-                            </div>
-                        </div>
-                    )}
+              {/* Full Name - Signup Only */}
+              {view === 'SIGNUP' && (
+                <div className="animate-fadeIn">
+                    <label className="sr-only">Full Name</label>
+                    <div className="relative">
+                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input 
+                        type="text" 
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Full Name"
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
+                        required
+                    />
+                    </div>
+                </div>
+              )}
 
-                    <div>
-                        <label className="sr-only">Email</label>
-                        <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input 
-                            type="email" 
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="Email address"
-                            className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
-                            required
-                        />
-                        </div>
+              {/* Email - Login, Signup, ForgotRequest */}
+              {(view === 'LOGIN' || view === 'SIGNUP' || view === 'FORGOT_REQUEST') && (
+                  <div className="animate-fadeIn">
+                    <label className="sr-only">Email</label>
+                    <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input 
+                        type="email" 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Email address"
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
+                        required
+                    />
+                    </div>
+                </div>
+              )}
+              
+              {/* Password - Login, Signup, ForgotReset (as new password) */}
+              {(view === 'LOGIN' || view === 'SIGNUP' || view === 'FORGOT_RESET') && (
+                 <div className="animate-fadeIn">
+                    <label className="sr-only">
+                        {view === 'FORGOT_RESET' ? 'New Password' : 'Password'}
+                    </label>
+                    <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input 
+                        type="password" 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder={view === 'FORGOT_RESET' ? 'New Password' : 'Password'}
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
+                        required
+                        minLength={6}
+                    />
                     </div>
                     
-                    <div>
-                        <label className="sr-only">Password</label>
-                        <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input 
-                            type="password" 
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Password"
-                            className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none transition-all"
-                            required
-                            minLength={6}
-                        />
+                    {/* Forgot Password Link */}
+                    {view === 'LOGIN' && (
+                        <div className="text-right mt-1">
+                            <button 
+                                type="button"
+                                onClick={() => setView('FORGOT_REQUEST')}
+                                className="text-xs text-gray-500 hover:text-pink-600 transition-colors"
+                            >
+                                Forgot Password?
+                            </button>
                         </div>
-                    </div>
-                  </>
-              ) : (
-                  /* VERIFICATION FORM */
+                    )}
+                </div>
+              )}
+
+              {/* OTP - Verify Signup, Forgot Reset */}
+              {(view === 'VERIFY_SIGNUP' || view === 'FORGOT_RESET') && (
                   <div className="animate-fadeIn">
                      <label className="sr-only">Verification Code</label>
                      <div className="relative">
@@ -439,16 +494,25 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
                         />
                      </div>
                      <div className="flex justify-between items-center mt-2 text-xs">
-                         <button type="button" onClick={() => setVerificationStep(false)} className="text-gray-500 hover:text-gray-800">Change Email</button>
-                         <button type="button" onClick={handleResendCode} className="text-pink-600 font-medium hover:underline">Resend Code</button>
+                         {view === 'VERIFY_SIGNUP' && (
+                             <button type="button" onClick={() => setView('SIGNUP')} className="text-gray-500 hover:text-gray-800">Change Email</button>
+                         )}
+                         <button type="button" onClick={handleResendCode} className="text-pink-600 font-medium hover:underline ml-auto">Resend Code</button>
                      </div>
                   </div>
               )}
 
               {authError && (
-                 <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg text-sm">
+                 <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg text-sm animate-fadeIn">
                     <AlertCircle className="w-4 h-4" />
                     {authError}
+                 </div>
+              )}
+
+              {successMessage && (
+                  <div className="flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-lg text-sm animate-fadeIn">
+                    <CheckCircle className="w-4 h-4" />
+                    {successMessage}
                  </div>
               )}
 
@@ -462,29 +526,45 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
                 ) : (
                   <>
                     <span>
-                        {verificationStep ? 'Verify & Create Account' : (isSignUp ? 'Create Account' : 'Log In')}
+                        {view === 'LOGIN' && 'Log In'}
+                        {view === 'SIGNUP' && 'Create Account'}
+                        {view === 'VERIFY_SIGNUP' && 'Verify & Create'}
+                        {view === 'FORGOT_REQUEST' && 'Send Reset Code'}
+                        {view === 'FORGOT_RESET' && 'Reset Password'}
                     </span>
-                    {verificationStep ? <CheckCircle className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                    {(view === 'VERIFY_SIGNUP' || view === 'FORGOT_RESET') ? <CheckCircle className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
                   </>
                 )}
               </button>
+              
+              {/* Back Button for Forgot Password Flow */}
+              {view === 'FORGOT_REQUEST' && (
+                  <button
+                    type="button"
+                    onClick={() => setView('LOGIN')}
+                    className="w-full flex items-center justify-center gap-2 text-gray-500 hover:text-gray-800 py-2 text-sm"
+                  >
+                      <ArrowLeft className="w-3 h-3" /> Back to Login
+                  </button>
+              )}
+
             </form>
 
             <div className="mt-6 text-center text-sm text-gray-600">
-              {!verificationStep && (
+              {(view === 'LOGIN' || view === 'SIGNUP') && (
                   <p>
-                    {isSignUp ? "Already have an account?" : "Don't have an account?"}
+                    {view === 'SIGNUP' ? "Already have an account?" : "Don't have an account?"}
                     <button 
-                    onClick={() => setIsSignUp(!isSignUp)}
+                    onClick={() => setView(view === 'SIGNUP' ? 'LOGIN' : 'SIGNUP')}
                     className="ml-2 font-semibold text-pink-600 hover:text-pink-700 underline"
                     >
-                    {isSignUp ? 'Log In' : 'Sign Up'}
+                    {view === 'SIGNUP' ? 'Log In' : 'Sign Up'}
                     </button>
                   </p>
               )}
             </div>
 
-            {!isSignUp && !verificationStep && (
+            {view === 'LOGIN' && (
                 <div className="mt-8 pt-6 border-t border-gray-100 text-center">
                     <button 
                         onClick={handleDemoLogin}

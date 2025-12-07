@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle, Mail } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle, Mail, Cloud, UploadCloud, Loader2 } from 'lucide-react';
 import { Product } from '../types';
 
 interface AdminDashboardProps {
@@ -28,6 +28,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [emailServiceId, setEmailServiceId] = useState('');
   const [emailTemplateId, setEmailTemplateId] = useState('');
   const [emailPublicKey, setEmailPublicKey] = useState('');
+
+  // Backup State
+  const [backupStatus, setBackupStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
 
   const [showSaveMessage, setShowSaveMessage] = useState(false);
   const [copiedOrigin, setCopiedOrigin] = useState(false);
@@ -104,6 +107,91 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     navigator.clipboard.writeText(window.location.origin);
     setCopiedOrigin(true);
     setTimeout(() => setCopiedOrigin(false), 2000);
+  };
+
+  // --- GOOGLE DRIVE BACKUP LOGIC ---
+  const handleBackupToDrive = () => {
+    if (!settingsClientId) {
+        alert("Please configure and save your Google Client ID first.");
+        return;
+    }
+
+    setBackupStatus('uploading');
+
+    // Use the existing Google Identity Services library loaded in index.html
+    const google = (window as any).google;
+    if (!google) {
+        alert("Google scripts not loaded.");
+        setBackupStatus('error');
+        return;
+    }
+
+    const client = google.accounts.oauth2.initTokenClient({
+        client_id: settingsClientId,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: async (tokenResponse: any) => {
+            if (tokenResponse && tokenResponse.access_token) {
+                await uploadDataToDrive(tokenResponse.access_token);
+            } else {
+                setBackupStatus('error');
+            }
+        },
+    });
+
+    client.requestAccessToken();
+  };
+
+  const uploadDataToDrive = async (accessToken: string) => {
+    try {
+        // Gather Data
+        const users = JSON.parse(localStorage.getItem('GLAZE_USERS') || '{}');
+        const reviews = JSON.parse(localStorage.getItem('GLAZE_REVIEWS') || '[]');
+        const storedProducts = JSON.parse(localStorage.getItem('GLAZE_PRODUCTS') || JSON.stringify(products));
+
+        const backupData = {
+            metadata: {
+                appName: 'Glaze Cosmetics',
+                backupDate: new Date().toISOString(),
+                description: 'Full backup of users, products, and reviews.'
+            },
+            data: {
+                products: storedProducts,
+                users: users,
+                reviews: reviews
+            }
+        };
+
+        const fileContent = JSON.stringify(backupData, null, 2);
+        const file = new Blob([fileContent], { type: 'application/json' });
+        
+        const metadata = {
+            name: `glaze_backup_${new Date().toISOString().slice(0, 10)}.json`,
+            mimeType: 'application/json',
+        };
+
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', file);
+
+        const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+            body: form
+        });
+
+        const data = await res.json();
+        
+        if (data.id) {
+            setBackupStatus('success');
+            setTimeout(() => setBackupStatus('idle'), 5000);
+        } else {
+            console.error('Drive upload failed', data);
+            setBackupStatus('error');
+        }
+    } catch (e) {
+        console.error('Backup error:', e);
+        setBackupStatus('error');
+    }
   };
 
   return (
@@ -520,7 +608,52 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-4 flex items-center justify-between">
+                  {/* GOOGLE DRIVE BACKUP */}
+                  <div className="border-t border-gray-200 pt-6 mt-6">
+                     <div className="flex items-center gap-2 mb-4">
+                        <div className="p-1.5 bg-green-50 rounded-lg">
+                          <Cloud className="w-5 h-5 text-green-600" />
+                        </div>
+                        <h3 className="text-md font-bold text-gray-900">Google Drive Backup</h3>
+                     </div>
+                     <p className="text-xs text-gray-500 mb-4">
+                       Securely backup your Products, Users, and Reviews to your personal Google Drive. 
+                       <br/>This will create a JSON file in your Drive.
+                     </p>
+                     
+                     <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={handleBackupToDrive}
+                          disabled={backupStatus === 'uploading'}
+                          className={`flex items-center px-4 py-2 text-xs font-medium rounded-lg border shadow-sm transition-all
+                            ${backupStatus === 'uploading' 
+                                ? 'bg-gray-100 text-gray-400 border-gray-200' 
+                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-green-400'
+                             }`}
+                        >
+                            {backupStatus === 'uploading' ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                                <UploadCloud className="w-4 h-4 mr-2" />
+                            )}
+                            {backupStatus === 'uploading' ? 'Backing up...' : 'Backup to Google Drive'}
+                        </button>
+
+                        {backupStatus === 'success' && (
+                            <span className="text-green-600 text-xs font-bold flex items-center animate-fadeIn">
+                                <Check className="w-3 h-3 mr-1" /> Backup Successful!
+                            </span>
+                        )}
+                        {backupStatus === 'error' && (
+                            <span className="text-red-600 text-xs font-bold flex items-center animate-fadeIn">
+                                <AlertTriangle className="w-3 h-3 mr-1" /> Backup Failed
+                            </span>
+                        )}
+                     </div>
+                  </div>
+
+                  <div className="pt-4 flex items-center justify-between border-t border-gray-100 mt-6">
                      {showSaveMessage ? (
                        <span className="text-green-600 font-medium text-sm flex items-center">
                          <Save className="w-4 h-4 mr-1" /> Saved to browser! Reloading...

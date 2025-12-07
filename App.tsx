@@ -125,7 +125,7 @@ const App: React.FC = () => {
 
   const sendOrderNotification = async (order: Order) => {
       const serviceId = localStorage.getItem('GLAZE_EMAIL_SERVICE_ID');
-      const templateId = localStorage.getItem('GLAZE_EMAIL_TEMPLATE_ID');
+      const templateId = localStorage.getItem('GLAZE_EMAIL_ORDER_TEMPLATE_ID'); // Updated to use Order Template
       const publicKey = localStorage.getItem('GLAZE_EMAIL_PUBLIC_KEY');
 
       if (serviceId && templateId && publicKey) {

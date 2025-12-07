@@ -37,7 +37,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   
   // EmailJS Settings
   const [emailServiceId, setEmailServiceId] = useState('');
-  const [emailTemplateId, setEmailTemplateId] = useState('');
+  const [emailVerifyTemplateId, setEmailVerifyTemplateId] = useState('');
+  const [emailOrderTemplateId, setEmailOrderTemplateId] = useState('');
   const [emailPublicKey, setEmailPublicKey] = useState('');
 
   // Backup State
@@ -62,7 +63,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     
     // Load EmailJS
     setEmailServiceId(localStorage.getItem('GLAZE_EMAIL_SERVICE_ID') || '');
-    setEmailTemplateId(localStorage.getItem('GLAZE_EMAIL_TEMPLATE_ID') || '');
+    setEmailVerifyTemplateId(localStorage.getItem('GLAZE_EMAIL_VERIFY_TEMPLATE_ID') || '');
+    setEmailOrderTemplateId(localStorage.getItem('GLAZE_EMAIL_ORDER_TEMPLATE_ID') || localStorage.getItem('GLAZE_EMAIL_TEMPLATE_ID') || '');
     setEmailPublicKey(localStorage.getItem('GLAZE_EMAIL_PUBLIC_KEY') || '');
   }, []);
 
@@ -115,7 +117,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const cleanClientId = settingsClientId.trim();
     const cleanPaypalEmail = paypalEmail.trim();
     const cleanServiceId = emailServiceId.trim();
-    const cleanTemplateId = emailTemplateId.trim();
+    const cleanVerifyTemplateId = emailVerifyTemplateId.trim();
+    const cleanOrderTemplateId = emailOrderTemplateId.trim();
     const cleanPublicKey = emailPublicKey.trim();
     const cleanMpesaNumber = mpesaBusinessNumber.trim();
     const cleanIntaSendKey = intaSendKey.trim();
@@ -130,7 +133,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     
     // Save EmailJS
     localStorage.setItem('GLAZE_EMAIL_SERVICE_ID', cleanServiceId);
-    localStorage.setItem('GLAZE_EMAIL_TEMPLATE_ID', cleanTemplateId);
+    localStorage.setItem('GLAZE_EMAIL_VERIFY_TEMPLATE_ID', cleanVerifyTemplateId);
+    localStorage.setItem('GLAZE_EMAIL_ORDER_TEMPLATE_ID', cleanOrderTemplateId);
     localStorage.setItem('GLAZE_EMAIL_PUBLIC_KEY', cleanPublicKey);
     
     // Update state to reflect trimmed values
@@ -140,7 +144,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setMpesaBusinessNumber(cleanMpesaNumber);
     setIntaSendKey(cleanIntaSendKey);
     setEmailServiceId(cleanServiceId);
-    setEmailTemplateId(cleanTemplateId);
+    setEmailVerifyTemplateId(cleanVerifyTemplateId);
+    setEmailOrderTemplateId(cleanOrderTemplateId);
     setEmailPublicKey(cleanPublicKey);
 
     setShowSaveMessage(true);
@@ -593,10 +598,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="flex items-start gap-3">
                             <Mail className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                             <div className="w-full">
-                                <h4 className="font-bold text-sm text-blue-900 mb-2">Order Notifications (EmailJS)</h4>
+                                <h4 className="font-bold text-sm text-blue-900 mb-2">Email Configuration (Orders & Verification)</h4>
                                 <p className="text-xs text-blue-800 mb-3">
-                                    To get email alerts for new orders, sign up at <a href="https://www.emailjs.com/" target="_blank" className="underline font-bold">emailjs.com</a>.
-                                    Create a service (e.g., Gmail) and a template.
+                                    Sign up at <a href="https://www.emailjs.com/" target="_blank" className="underline font-bold">emailjs.com</a>. Create two templates: one for verifying users (variables: <code>{`{{otp}}`}</code>) and one for new orders (variables: <code>{`{{order_details}}`}</code>).
                                 </p>
                                 
                                 <div className="space-y-3">
@@ -610,15 +614,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             className="w-full rounded border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-xs p-2"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-blue-900 mb-1">Template ID</label>
-                                        <input
-                                            type="text"
-                                            value={emailTemplateId}
-                                            onChange={(e) => setEmailTemplateId(e.target.value)}
-                                            placeholder="template_..."
-                                            className="w-full rounded border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-xs p-2"
-                                        />
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium text-blue-900 mb-1">Verify Template ID</label>
+                                            <input
+                                                type="text"
+                                                value={emailVerifyTemplateId}
+                                                onChange={(e) => setEmailVerifyTemplateId(e.target.value)}
+                                                placeholder="template_verify"
+                                                className="w-full rounded border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-xs p-2"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-blue-900 mb-1">Order Template ID</label>
+                                            <input
+                                                type="text"
+                                                value={emailOrderTemplateId}
+                                                onChange={(e) => setEmailOrderTemplateId(e.target.value)}
+                                                placeholder="template_order"
+                                                className="w-full rounded border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-xs p-2"
+                                            />
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-blue-900 mb-1">Public Key</label>

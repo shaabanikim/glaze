@@ -134,7 +134,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, initialView = 'LOGIN', 
 
   const sendVerificationEmail = async (userEmail: string, userName: string, code: string, subjectType: 'VERIFY' | 'RESET') => {
       const serviceId = localStorage.getItem('GLAZE_EMAIL_SERVICE_ID');
-      const templateId = localStorage.getItem('GLAZE_EMAIL_TEMPLATE_ID');
+      const templateId = localStorage.getItem('GLAZE_EMAIL_VERIFY_TEMPLATE_ID');
       const publicKey = localStorage.getItem('GLAZE_EMAIL_PUBLIC_KEY');
 
       // If keys are configured, send real email

@@ -7,6 +7,7 @@ import LoginModal from './components/LoginModal';
 import PaymentModal from './components/PaymentModal';
 import AdminDashboard from './components/AdminDashboard';
 import ProductDetailsModal from './components/ProductDetailsModal';
+import UserOrdersModal from './components/UserOrdersModal';
 import { PRODUCTS } from './constants';
 import { Product, CartItem, User, Review, Order, ShippingDetails, OrderStatus } from './types';
 import { X, ShoppingBag, Instagram, Facebook, Twitter } from 'lucide-react';
@@ -45,6 +46,7 @@ const App: React.FC = () => {
   // Auth State
   const [user, setUser] = useState<User | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isUserOrdersOpen, setIsUserOrdersOpen] = useState(false);
   const [view, setView] = useState<'shop' | 'admin'>('shop');
 
   // Product Detail State
@@ -216,6 +218,7 @@ const App: React.FC = () => {
         onLogoutClick={handleLogout}
         onScrollToSection={scrollToSection}
         onNavigateToAdmin={() => setView('admin')}
+        onOpenOrders={() => setIsUserOrdersOpen(true)}
       />
 
       <LoginModal 
@@ -239,6 +242,13 @@ const App: React.FC = () => {
         onClose={() => setSelectedProduct(null)}
         onAddToCart={addToCart}
         onAddReview={handleAddReview}
+      />
+
+      <UserOrdersModal
+        isOpen={isUserOrdersOpen}
+        onClose={() => setIsUserOrdersOpen(false)}
+        orders={orders}
+        currentUser={user}
       />
 
       <main className="flex-grow">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Menu, X, Sparkles, LogIn, LogOut, LayoutDashboard } from 'lucide-react';
+import { ShoppingBag, Menu, X, Sparkles, LogIn, LogOut, LayoutDashboard, Package } from 'lucide-react';
 import { APP_NAME } from '../constants';
 import { User } from '../types';
 
@@ -11,6 +11,7 @@ interface NavbarProps {
   onLogoutClick: () => void;
   onScrollToSection: (id: string) => void;
   onNavigateToAdmin?: () => void;
+  onOpenOrders?: () => void;
 }
 
 const Navbar: React.FC<NavbarProps> = ({ 
@@ -20,7 +21,8 @@ const Navbar: React.FC<NavbarProps> = ({
   onLoginClick,
   onLogoutClick,
   onScrollToSection,
-  onNavigateToAdmin
+  onNavigateToAdmin,
+  onOpenOrders
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -98,14 +100,26 @@ const Navbar: React.FC<NavbarProps> = ({
                         </button>
                       )}
 
+                      {onOpenOrders && (
+                        <button
+                          onClick={() => {
+                            onOpenOrders();
+                            setIsUserMenuOpen(false);
+                          }}
+                          className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-pink-50 hover:text-pink-600"
+                        >
+                          <Package className="w-4 h-4 mr-2" /> My Orders
+                        </button>
+                      )}
+
                       <button
                         onClick={() => {
                           onLogoutClick();
                           setIsUserMenuOpen(false);
                         }}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-pink-50 hover:text-pink-600"
+                        className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-pink-50 hover:text-pink-600"
                       >
-                        Sign out
+                        <LogOut className="w-4 h-4 mr-2" /> Sign out
                       </button>
                     </div>
                   )}
@@ -181,6 +195,18 @@ const Navbar: React.FC<NavbarProps> = ({
                       className="flex items-center w-full text-gray-600 hover:text-pink-600 px-2 py-2 text-base font-medium"
                     >
                       <LayoutDashboard className="w-4 h-4 mr-2" /> Dashboard
+                    </button>
+                  )}
+
+                  {onOpenOrders && (
+                    <button 
+                      onClick={() => {
+                        onOpenOrders();
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="flex items-center w-full text-gray-600 hover:text-pink-600 px-2 py-2 text-base font-medium"
+                    >
+                      <Package className="w-4 h-4 mr-2" /> My Orders
                     </button>
                   )}
 

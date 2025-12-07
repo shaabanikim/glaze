@@ -11,7 +11,7 @@ interface PaymentModalProps {
 }
 
 type PaymentMethod = 'PAYPAL' | 'MPESA';
-type PaymentStep = 'SHIPPING' | 'SELECT' | 'DETAILS' | 'PROCESSING' | 'MPESA_PUSH_SENT' | 'SUCCESS';
+type PaymentStep = 'SHIPPING' | 'SELECT' | 'DETAILS' | 'PROCESSING' | 'SUCCESS';
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, user, onClose, onSuccess }) => {
   const [method, setMethod] = useState<PaymentMethod>('PAYPAL');
@@ -120,7 +120,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, user, onClos
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
-        onClick={(step === 'PROCESSING' || step === 'MPESA_PUSH_SENT') ? undefined : onClose}
+        onClick={(step === 'PROCESSING') ? undefined : onClose}
       />
 
       {/* Modal */}
@@ -128,7 +128,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, user, onClos
         <div className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all w-full max-w-md border border-gray-100">
           
           {/* Close Button */}
-          {step !== 'PROCESSING' && step !== 'MPESA_PUSH_SENT' && step !== 'SUCCESS' && (
+          {step !== 'PROCESSING' && step !== 'SUCCESS' && (
             <button 
               onClick={onClose}
               className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors z-10"

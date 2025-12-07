@@ -30,10 +30,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   
   // Payment Settings
   const [paypalEmail, setPaypalEmail] = useState('');
-  const [mpesaBusinessNumber, setMpesaBusinessNumber] = useState('');
-  const [mpesaType, setMpesaType] = useState('PAYBILL');
-  const [intaSendKey, setIntaSendKey] = useState('');
-  const [intaSendLive, setIntaSendLive] = useState(false);
   
   // EmailJS Settings
   const [emailServiceId, setEmailServiceId] = useState('');
@@ -54,12 +50,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setSettingsApiKey(localStorage.getItem('GLAZE_API_KEY') || process.env.API_KEY || '');
     setSettingsClientId(localStorage.getItem('GLAZE_GOOGLE_CLIENT_ID') || process.env.GOOGLE_CLIENT_ID || '');
     setPaypalEmail(localStorage.getItem('GLAZE_PAYPAL_EMAIL') || 'ayubshaaban040@gmail.com');
-    
-    // Load MPesa / IntaSend
-    setMpesaBusinessNumber(localStorage.getItem('GLAZE_MPESA_NUMBER') || '123456');
-    setMpesaType(localStorage.getItem('GLAZE_MPESA_TYPE') || 'PAYBILL');
-    setIntaSendKey(localStorage.getItem('GLAZE_INTASEND_KEY') || '');
-    setIntaSendLive(localStorage.getItem('GLAZE_INTASEND_LIVE') === 'true');
     
     // Load EmailJS
     setEmailServiceId(localStorage.getItem('GLAZE_EMAIL_SERVICE_ID') || '');
@@ -120,16 +110,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const cleanVerifyTemplateId = emailVerifyTemplateId.trim();
     const cleanOrderTemplateId = emailOrderTemplateId.trim();
     const cleanPublicKey = emailPublicKey.trim();
-    const cleanMpesaNumber = mpesaBusinessNumber.trim();
-    const cleanIntaSendKey = intaSendKey.trim();
 
     localStorage.setItem('GLAZE_API_KEY', cleanApiKey);
     localStorage.setItem('GLAZE_GOOGLE_CLIENT_ID', cleanClientId);
     localStorage.setItem('GLAZE_PAYPAL_EMAIL', cleanPaypalEmail);
-    localStorage.setItem('GLAZE_MPESA_NUMBER', cleanMpesaNumber);
-    localStorage.setItem('GLAZE_MPESA_TYPE', mpesaType);
-    localStorage.setItem('GLAZE_INTASEND_KEY', cleanIntaSendKey);
-    localStorage.setItem('GLAZE_INTASEND_LIVE', String(intaSendLive));
     
     // Save EmailJS
     localStorage.setItem('GLAZE_EMAIL_SERVICE_ID', cleanServiceId);
@@ -141,8 +125,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setSettingsApiKey(cleanApiKey);
     setSettingsClientId(cleanClientId);
     setPaypalEmail(cleanPaypalEmail);
-    setMpesaBusinessNumber(cleanMpesaNumber);
-    setIntaSendKey(cleanIntaSendKey);
     setEmailServiceId(cleanServiceId);
     setEmailVerifyTemplateId(cleanVerifyTemplateId);
     setEmailOrderTemplateId(cleanOrderTemplateId);
@@ -593,14 +575,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 <form onSubmit={handleSaveSettings} className="space-y-6">
                   
-                  {/* EmailJS Settings - Reorganized for visibility */}
+                  {/* EmailJS Settings */}
                   <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
                         <div className="flex items-start gap-3">
                             <Mail className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                             <div className="w-full">
-                                <h4 className="font-bold text-sm text-blue-900 mb-2">Email Configuration (Orders & Verification)</h4>
+                                <h4 className="font-bold text-sm text-blue-900 mb-2">Email Configuration</h4>
                                 <p className="text-xs text-blue-800 mb-3">
-                                    Sign up at <a href="https://www.emailjs.com/" target="_blank" className="underline font-bold">emailjs.com</a>. Create two templates: one for verifying users (variables: <code>{`{{otp}}`}</code>) and one for new orders (variables: <code>{`{{order_details}}`}</code>).
+                                    Sign up at <a href="https://www.emailjs.com/" target="_blank" className="underline font-bold">emailjs.com</a>.
                                 </p>
                                 
                                 <div className="space-y-3">
@@ -692,78 +674,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <h3 className="text-md font-bold text-gray-900">Payment Settings</h3>
                     </div>
                     
-                    {/* IntaSend REAL Payment Config */}
-                    <div className="bg-green-50 border border-green-100 rounded-lg p-4 mb-6">
-                        <div className="flex items-start gap-3">
-                            <CreditCard className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                            <div className="w-full">
-                                <h4 className="font-bold text-sm text-green-900 mb-2">Enable Real MPesa & Card Payments</h4>
-                                <p className="text-xs text-green-800 mb-3">
-                                    To process real payments, create an account at <a href="https://intasend.com" target="_blank" className="underline font-bold">IntaSend.com</a> and get your Publishable Key.
-                                </p>
-                                
-                                <div className="space-y-3">
-                                    <div>
-                                        <label className="block text-xs font-medium text-green-900 mb-1">IntaSend Public Key</label>
-                                        <input
-                                            type="text"
-                                            value={intaSendKey}
-                                            onChange={(e) => setIntaSendKey(e.target.value)}
-                                            placeholder="ISPubKey_Live_..."
-                                            className="w-full rounded border-green-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-xs p-2"
-                                        />
-                                    </div>
-                                    <div className="flex items-center">
-                                        <input
-                                            id="live-mode"
-                                            type="checkbox"
-                                            checked={intaSendLive}
-                                            onChange={(e) => setIntaSendLive(e.target.checked)}
-                                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                                        />
-                                        <label htmlFor="live-mode" className="ml-2 block text-xs text-green-900">
-                                            Enable Live Mode (Uncheck for Test Mode)
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-6 opacity-80">
-                        {/* PayPal */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">PayPal Business Email</label>
-                            <input
-                            type="email"
-                            value={paypalEmail}
-                            onChange={(e) => setPaypalEmail(e.target.value)}
-                            placeholder="your-business-email@example.com"
-                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-3 border text-sm"
-                            />
-                        </div>
-
-                        {/* MPesa Manual Info (Fallback) */}
-                        <div>
-                             <label className="block text-sm font-medium text-gray-700 mb-2">MPesa Paybill (Simulation Info)</label>
-                             <div className="flex gap-2">
-                                <input
-                                type="text"
-                                value={mpesaBusinessNumber}
-                                onChange={(e) => setMpesaBusinessNumber(e.target.value)}
-                                placeholder="e.g. 123456"
-                                className="w-full flex-1 rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-3 border text-sm"
-                                />
-                                <select 
-                                  value={mpesaType}
-                                  onChange={(e) => setMpesaType(e.target.value)}
-                                  className="rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 border text-sm px-2"
-                                >
-                                    <option value="PAYBILL">Paybill</option>
-                                    <option value="BUY_GOODS">Buy Goods</option>
-                                </select>
-                             </div>
-                        </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">PayPal Business Email</label>
+                        <input
+                        type="email"
+                        value={paypalEmail}
+                        onChange={(e) => setPaypalEmail(e.target.value)}
+                        placeholder="your-business-email@example.com"
+                        className="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-3 border text-sm"
+                        />
                     </div>
                   </div>
 

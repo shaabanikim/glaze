@@ -1,23 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle, Mail, Cloud, UploadCloud, Loader2, DownloadCloud, RefreshCw, ExternalLink, Smartphone, CreditCard } from 'lucide-react';
-import { Product } from '../types';
+import { Plus, Edit2, Trash2, X, Save, Image as ImageIcon, ArrowLeft, DollarSign, Settings, Key, Globe, HelpCircle, Copy, Check, AlertTriangle, Mail, Cloud, UploadCloud, Loader2, DownloadCloud, RefreshCw, ExternalLink, Smartphone, CreditCard, ShoppingBag, Package, Truck, CheckCircle } from 'lucide-react';
+import { Product, Order, OrderStatus } from '../types';
 
 interface AdminDashboardProps {
   products: Product[];
+  orders: Order[];
   onAdd: (product: Product) => void;
   onUpdate: (product: Product) => void;
   onDelete: (id: string) => void;
+  onUpdateOrder: (orderId: string, status: OrderStatus) => void;
   onClose: () => void;
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
   products, 
+  orders = [],
   onAdd, 
   onUpdate, 
   onDelete, 
+  onUpdateOrder,
   onClose 
 }) => {
-  const [view, setView] = useState<'list' | 'form' | 'settings'>('list');
+  const [view, setView] = useState<'list' | 'orders' | 'form' | 'settings'>('list');
   const [editingProduct, setEditingProduct] = useState<Partial<Product>>({});
   
   // Settings State
@@ -206,17 +210,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const users = JSON.parse(localStorage.getItem('GLAZE_USERS') || '{}');
         const reviews = JSON.parse(localStorage.getItem('GLAZE_REVIEWS') || '[]');
         const storedProducts = JSON.parse(localStorage.getItem('GLAZE_PRODUCTS') || JSON.stringify(products));
+        const storedOrders = JSON.parse(localStorage.getItem('GLAZE_ORDERS') || JSON.stringify(orders));
 
         const backupData = {
             metadata: {
                 appName: 'Glaze Cosmetics',
                 backupDate: new Date().toISOString(),
-                description: 'Full backup of users, products, and reviews.'
+                description: 'Full backup of users, products, reviews, and orders.'
             },
             data: {
                 products: storedProducts,
                 users: users,
-                reviews: reviews
+                reviews: reviews,
+                orders: storedOrders
             }
         };
 
@@ -282,6 +288,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             if (backup.data.users) localStorage.setItem('GLAZE_USERS', JSON.stringify(backup.data.users));
             if (backup.data.products) localStorage.setItem('GLAZE_PRODUCTS', JSON.stringify(backup.data.products));
             if (backup.data.reviews) localStorage.setItem('GLAZE_REVIEWS', JSON.stringify(backup.data.reviews));
+            if (backup.data.orders) localStorage.setItem('GLAZE_ORDERS', JSON.stringify(backup.data.orders));
             
             setBackupStatus('success-restore');
             // Reload page to reflect changes
@@ -298,14 +305,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  const getStatusColor = (status: OrderStatus) => {
+      switch(status) {
+          case 'PENDING': return 'bg-yellow-100 text-yellow-800';
+          case 'PROCESSING': return 'bg-blue-100 text-blue-800';
+          case 'SHIPPED': return 'bg-purple-100 text-purple-800';
+          case 'DELIVERED': return 'bg-green-100 text-green-800';
+          case 'CANCELLED': return 'bg-red-100 text-red-800';
+          default: return 'bg-gray-100 text-gray-800';
+      }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 pt-20 pb-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center">
-            {view !== 'list' && (
+            {view !== 'list' && view !== 'orders' && (
               <button 
                 onClick={() => setView('list')}
                 className="mr-4 p-2 rounded-full hover:bg-gray-200 transition-colors"
@@ -315,19 +333,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
             <div>
               <h1 className="text-3xl font-serif font-bold text-gray-900">
-                {view === 'list' ? 'Product Dashboard' : view === 'settings' ? 'Site Settings' : editingProduct.name || 'New Product'}
+                {view === 'list' ? 'Product Dashboard' : view === 'orders' ? 'Order Management' : view === 'settings' ? 'Site Settings' : editingProduct.name || 'New Product'}
               </h1>
               <p className="text-sm text-gray-500 mt-1">
-                {view === 'list' ? 'Manage your inventory and shades' : view === 'settings' ? 'Configure API keys and integrations' : 'Enter product details below'}
+                {view === 'list' ? 'Manage your inventory and shades' : view === 'orders' ? 'Track and fulfill customer orders' : view === 'settings' ? 'Configure API keys and integrations' : 'Enter product details below'}
               </p>
             </div>
           </div>
           
-          {view === 'list' ? (
-            <div className="flex gap-3">
+          <div className="flex gap-3">
+              <button
+                onClick={() => setView('orders')}
+                className={`flex items-center px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 transition-colors ${view === 'orders' ? 'bg-gray-100 text-black border-gray-400' : 'bg-white text-gray-700 border-gray-300'}`}
+              >
+                <ShoppingBag className="w-4 h-4 mr-2" /> Orders
+              </button>
+              <button
+                onClick={() => setView('list')}
+                className={`flex items-center px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 transition-colors ${view === 'list' ? 'bg-gray-100 text-black border-gray-400' : 'bg-white text-gray-700 border-gray-300'}`}
+              >
+                <Package className="w-4 h-4 mr-2" /> Products
+              </button>
               <button
                 onClick={() => setView('settings')}
-                className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className={`flex items-center px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 transition-colors ${view === 'settings' ? 'bg-gray-100 text-black border-gray-400' : 'bg-white text-gray-700 border-gray-300'}`}
               >
                 <Settings className="w-4 h-4 mr-2" /> Settings
               </button>
@@ -335,24 +364,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                Exit Dashboard
+                Exit
               </button>
-              <button
-                onClick={handleAddNew}
-                className="flex items-center px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800"
-              >
-                <Plus className="w-4 h-4 mr-2" /> Add Product
-              </button>
-            </div>
-          ) : (
-             <button
-                type="button"
-                onClick={() => setView('list')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Back to List
-              </button>
-          )}
+              {view === 'list' && (
+                <button
+                    onClick={handleAddNew}
+                    className="flex items-center px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800"
+                >
+                    <Plus className="w-4 h-4 mr-2" /> Add Product
+                </button>
+              )}
+          </div>
         </div>
 
         {view === 'list' && (
@@ -411,6 +433,75 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </table>
             </div>
           </div>
+        )}
+
+        {view === 'orders' && (
+            <div className="bg-white shadow-sm rounded-xl overflow-hidden border border-gray-200">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {orders.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                                        No orders found.
+                                    </td>
+                                </tr>
+                            ) : (
+                                [...orders].reverse().map((order) => (
+                                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-500">
+                                            {order.id.slice(-8).toUpperCase()}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="text-sm font-medium text-gray-900">{order.customer.name}</div>
+                                            <div className="text-xs text-gray-500">{order.customer.email}</div>
+                                            <div className="text-xs text-gray-400">{order.customer.city}</div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            {order.items.length} items
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                                            ${order.total.toFixed(2)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                                                {order.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            {new Date(order.date).toLocaleDateString()}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <select 
+                                                value={order.status}
+                                                onChange={(e) => onUpdateOrder(order.id, e.target.value as OrderStatus)}
+                                                className="text-sm border-gray-300 rounded-md shadow-sm focus:border-pink-500 focus:ring-pink-500"
+                                            >
+                                                <option value="PENDING">Pending</option>
+                                                <option value="PROCESSING">Processing</option>
+                                                <option value="SHIPPED">Shipped</option>
+                                                <option value="DELIVERED">Delivered</option>
+                                                <option value="CANCELLED">Cancelled</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         )}
 
         {view === 'form' && (
@@ -497,6 +588,53 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 <form onSubmit={handleSaveSettings} className="space-y-6">
                   
+                  {/* EmailJS Settings - Reorganized for visibility */}
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
+                        <div className="flex items-start gap-3">
+                            <Mail className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                            <div className="w-full">
+                                <h4 className="font-bold text-sm text-blue-900 mb-2">Order Notifications (EmailJS)</h4>
+                                <p className="text-xs text-blue-800 mb-3">
+                                    To get email alerts for new orders, sign up at <a href="https://www.emailjs.com/" target="_blank" className="underline font-bold">emailjs.com</a>.
+                                    Create a service (e.g., Gmail) and a template.
+                                </p>
+                                
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-xs font-medium text-blue-900 mb-1">Service ID</label>
+                                        <input
+                                            type="text"
+                                            value={emailServiceId}
+                                            onChange={(e) => setEmailServiceId(e.target.value)}
+                                            placeholder="service_..."
+                                            className="w-full rounded border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-xs p-2"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-blue-900 mb-1">Template ID</label>
+                                        <input
+                                            type="text"
+                                            value={emailTemplateId}
+                                            onChange={(e) => setEmailTemplateId(e.target.value)}
+                                            placeholder="template_..."
+                                            className="w-full rounded border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-xs p-2"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-blue-900 mb-1">Public Key</label>
+                                        <input
+                                            type="text"
+                                            value={emailPublicKey}
+                                            onChange={(e) => setEmailPublicKey(e.target.value)}
+                                            placeholder="user_..."
+                                            className="w-full rounded border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-xs p-2"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                  </div>
+
                   {/* Gemini Key */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Gemini API Key</label>

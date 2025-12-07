@@ -1,20 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, Loader2, ShieldCheck, ExternalLink, Smartphone, DollarSign, CreditCard } from 'lucide-react';
+import { X, Check, Loader2, ShieldCheck, ExternalLink, Smartphone, DollarSign, CreditCard, MapPin, User, Mail, Phone } from 'lucide-react';
+import { ShippingDetails } from '../types';
 
 interface PaymentModalProps {
   isOpen: boolean;
   total: number;
+  user: { name?: string, email?: string } | null;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (method: 'PAYPAL' | 'MPESA', shipping: ShippingDetails) => void;
 }
 
 type PaymentMethod = 'PAYPAL' | 'MPESA';
-type PaymentStep = 'SELECT' | 'DETAILS' | 'PROCESSING' | 'MPESA_PUSH_SENT' | 'SUCCESS';
+type PaymentStep = 'SHIPPING' | 'SELECT' | 'DETAILS' | 'PROCESSING' | 'MPESA_PUSH_SENT' | 'SUCCESS';
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onSuccess }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, user, onClose, onSuccess }) => {
   const [method, setMethod] = useState<PaymentMethod>('PAYPAL');
-  const [step, setStep] = useState<PaymentStep>('SELECT');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [step, setStep] = useState<PaymentStep>('SHIPPING');
+  
+  // Shipping State
+  const [shipping, setShipping] = useState<ShippingDetails>({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: ''
+  });
+
+  const [phoneNumber, setPhoneNumber] = useState(''); // Specific for MPesa paybill
   const [mpesaError, setMpesaError] = useState('');
   const [isRealPaymentEnabled, setIsRealPaymentEnabled] = useState(false);
 
@@ -27,13 +39,26 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-        setStep('SELECT');
+        setStep('SHIPPING');
         setPhoneNumber('');
         setMpesaError('');
+        // Prefill if user exists
+        if (user) {
+            setShipping(prev => ({
+                ...prev,
+                name: user.name || '',
+                email: user.email || ''
+            }));
+        }
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   if (!isOpen) return null;
+
+  const handleShippingSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setStep('SELECT');
+  };
 
   const handlePayPalClick = () => {
     setStep('PROCESSING');
@@ -57,7 +82,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
     setTimeout(() => {
       setStep('SUCCESS');
       setTimeout(() => {
-        onSuccess();
+        onSuccess('PAYPAL', shipping);
         onClose();
       }, 3000);
     }, 5000); 
@@ -83,7 +108,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
                     console.log("Payment Successful", results);
                     setStep('SUCCESS');
                     setTimeout(() => {
-                        onSuccess();
+                        onSuccess('MPESA', shipping);
                         onClose();
                     }, 3000);
                 });
@@ -97,10 +122,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
                 intasend.run({
                     amount: total * 130, // Convert roughly to KES
                     currency: "KES",
-                    email: "customer@example.com" // Ideally from user profile
+                    email: shipping.email || "customer@example.com"
                 });
                 
-                // We don't set 'PROCESSING' step here because IntaSend opens its own modal
                 return;
             } catch (err) {
                 console.error("IntaSend Error", err);
@@ -126,7 +150,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
         setTimeout(() => {
             setStep('SUCCESS');
              setTimeout(() => {
-                onSuccess();
+                onSuccess('MPESA', shipping);
                 onClose();
             }, 3000);
         }, 6000); 
@@ -163,36 +187,101 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
           )}
 
           <div className="p-8">
-            <div className="text-center mb-8">
+            <div className="text-center mb-6">
                 <span className="text-pink-500 font-semibold tracking-widest uppercase text-xs mb-2 block">
                 Secure Checkout
                 </span>
                 <h3 className="text-2xl font-serif font-bold text-gray-900">
-                {step === 'SUCCESS' ? 'Order Confirmed!' : 'Complete Your Order'}
+                {step === 'SUCCESS' ? 'Order Confirmed!' : step === 'SHIPPING' ? 'Shipping Details' : 'Payment Method'}
                 </h3>
             </div>
             
             {/* Order Summary Box */}
             {step !== 'SUCCESS' && (
                 <div className="bg-gray-50 rounded-xl p-4 mb-8 border border-gray-100">
-                    <div className="flex justify-between items-center mb-2">
-                    <span className="text-gray-600">Subtotal</span>
-                    <span className="font-medium">${total.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center mb-2">
-                    <span className="text-gray-600">Shipping</span>
-                    <span className="text-green-600 font-medium">Free</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-2 border-t border-gray-200 mt-2">
-                    <span className="text-gray-900 font-bold">Total</span>
-                    <span className="text-gray-900 font-bold text-xl">${total.toFixed(2)}</span>
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="text-gray-900 font-bold">Total Due</span>
+                      <span className="text-gray-900 font-bold text-xl">${total.toFixed(2)}</span>
                     </div>
                 </div>
             )}
 
+            {/* Step: Shipping */}
+            {step === 'SHIPPING' && (
+              <form onSubmit={handleShippingSubmit} className="space-y-4 animate-fadeIn">
+                 <div>
+                    <div className="relative">
+                      <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                      <input 
+                        required
+                        type="text" 
+                        placeholder="Full Name" 
+                        value={shipping.name}
+                        onChange={e => setShipping({...shipping, name: e.target.value})}
+                        className="w-full pl-10 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none"
+                      />
+                    </div>
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                     <div className="relative">
+                        <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <input 
+                          required
+                          type="email" 
+                          placeholder="Email" 
+                          value={shipping.email}
+                          onChange={e => setShipping({...shipping, email: e.target.value})}
+                          className="w-full pl-10 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none"
+                        />
+                     </div>
+                     <div className="relative">
+                        <Phone className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <input 
+                          required
+                          type="tel" 
+                          placeholder="Phone" 
+                          value={shipping.phone}
+                          onChange={e => setShipping({...shipping, phone: e.target.value})}
+                          className="w-full pl-10 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none"
+                        />
+                     </div>
+                 </div>
+                 <div>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                      <input 
+                        required
+                        type="text" 
+                        placeholder="Street Address" 
+                        value={shipping.address}
+                        onChange={e => setShipping({...shipping, address: e.target.value})}
+                        className="w-full pl-10 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none"
+                      />
+                    </div>
+                 </div>
+                 <div>
+                     <input 
+                        required
+                        type="text" 
+                        placeholder="City / Town" 
+                        value={shipping.city}
+                        onChange={e => setShipping({...shipping, city: e.target.value})}
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-pink-500 focus:ring-pink-500 outline-none"
+                      />
+                 </div>
+
+                 <button
+                    type="submit"
+                    className="w-full flex items-center justify-center bg-black hover:bg-gray-800 text-white font-bold py-3.5 px-4 rounded-full transition-colors shadow-sm mt-4"
+                  >
+                    Continue to Payment
+                 </button>
+              </form>
+            )}
+
             {/* Step: Selection */}
             {step === 'SELECT' && (
-              <div className="space-y-4">
+              <div className="space-y-4 animate-fadeIn">
                   <div className="grid grid-cols-2 gap-4">
                      <button
                        onClick={() => setMethod('PAYPAL')}
@@ -231,7 +320,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
                           <form onSubmit={handleMpesaClick} className="space-y-4">
                              {/* Show Phone Input ONLY if in simulation mode, otherwise IntaSend handles it */}
                              {!isRealPaymentEnabled ? (
-                                 <div className="text-left">
+                                 <div className="text-left animate-fadeIn">
                                     <label className="block text-xs font-medium text-gray-700 mb-1 ml-1">M-Pesa Phone Number</label>
                                     <div className="relative">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">🇰🇪 +254</span>
@@ -253,7 +342,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
                                     </button>
                                  </div>
                              ) : (
-                                 <div className="text-center py-4 bg-green-50 rounded-xl border border-green-100">
+                                 <div className="text-center py-4 bg-green-50 rounded-xl border border-green-100 animate-fadeIn">
                                      <div className="flex justify-center mb-2 space-x-2">
                                          <Smartphone className="w-5 h-5 text-green-600" />
                                          <CreditCard className="w-5 h-5 text-green-600" />
@@ -272,6 +361,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
                              )}
                           </form>
                       )}
+                  </div>
+                  
+                  <div className="text-center mt-2">
+                     <button onClick={() => setStep('SHIPPING')} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                        Back to Shipping
+                     </button>
                   </div>
               </div>
             )}
@@ -322,7 +417,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, total, onClose, onS
             )}
             
             {/* Footer Security Badge */}
-            {(step === 'SELECT') && (
+            {(step === 'SELECT' || step === 'SHIPPING') && (
                 <div className="flex items-center justify-center gap-2 text-xs text-gray-400 mt-6">
                     <ShieldCheck className="w-3 h-3" />
                     <span>Payments are secure and encrypted</span>

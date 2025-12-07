@@ -8,8 +8,9 @@ import PaymentModal from './components/PaymentModal';
 import AdminDashboard from './components/AdminDashboard';
 import ProductDetailsModal from './components/ProductDetailsModal';
 import { PRODUCTS } from './constants';
-import { Product, CartItem, User, Review } from './types';
+import { Product, CartItem, User, Review, Order, ShippingDetails, OrderStatus } from './types';
 import { X, ShoppingBag, Instagram, Facebook, Twitter } from 'lucide-react';
+import emailjs from '@emailjs/browser';
 
 // Initial Mock Reviews
 const INITIAL_REVIEWS: Review[] = [
@@ -30,6 +31,12 @@ const App: React.FC = () => {
   const [reviews, setReviews] = useState<Review[]>(() => {
     const saved = localStorage.getItem('GLAZE_REVIEWS');
     return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
+  });
+
+  // Order State with Persistence
+  const [orders, setOrders] = useState<Order[]>(() => {
+    const saved = localStorage.getItem('GLAZE_ORDERS');
+    return saved ? JSON.parse(saved) : [];
   });
   
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -58,15 +65,10 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Persist Products whenever they change
-  useEffect(() => {
-    localStorage.setItem('GLAZE_PRODUCTS', JSON.stringify(products));
-  }, [products]);
-
-  // Persist Reviews whenever they change
-  useEffect(() => {
-    localStorage.setItem('GLAZE_REVIEWS', JSON.stringify(reviews));
-  }, [reviews]);
+  // Persist Data whenever it changes
+  useEffect(() => { localStorage.setItem('GLAZE_PRODUCTS', JSON.stringify(products)); }, [products]);
+  useEffect(() => { localStorage.setItem('GLAZE_REVIEWS', JSON.stringify(reviews)); }, [reviews]);
+  useEffect(() => { localStorage.setItem('GLAZE_ORDERS', JSON.stringify(orders)); }, [orders]);
 
   const addToCart = (product: Product) => {
     setCart(prev => {
@@ -102,7 +104,7 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('GLAZE_SESSION_USER');
-    setCart([]); // Optional: clear cart on logout
+    setCart([]); 
     setView('shop');
   };
 
@@ -117,8 +119,44 @@ const App: React.FC = () => {
     setIsPaymentModalOpen(true);
   };
 
-  const handlePaymentSuccess = () => {
+  const sendOrderNotification = async (order: Order) => {
+      const serviceId = localStorage.getItem('GLAZE_EMAIL_SERVICE_ID');
+      const templateId = localStorage.getItem('GLAZE_EMAIL_TEMPLATE_ID');
+      const publicKey = localStorage.getItem('GLAZE_EMAIL_PUBLIC_KEY');
+
+      if (serviceId && templateId && publicKey) {
+          try {
+              // Send to Admin (Notification)
+              await emailjs.send(serviceId, templateId, {
+                  to_name: 'Admin',
+                  to_email: 'admin@glaze.com', // In a real app, this would be the admin's actual email configured in settings
+                  message: `New Order Received! ID: ${order.id}. Total: $${order.total}. Customer: ${order.customer.name}`,
+                  customer_email: order.customer.email,
+                  order_details: JSON.stringify(order.items.map(i => `${i.quantity}x ${i.name}`)),
+              }, publicKey);
+              console.log("Order Notification Sent");
+          } catch (error) {
+              console.error('Failed to send order notification', error);
+          }
+      }
+  };
+
+  const handlePaymentSuccess = (method: 'PAYPAL' | 'MPESA', shipping: ShippingDetails) => {
+    const newOrder: Order = {
+        id: `ord_${Date.now()}`,
+        date: new Date().toISOString(),
+        customer: shipping,
+        items: [...cart],
+        total: cartTotal,
+        status: 'PENDING',
+        paymentMethod: method
+    };
+
+    setOrders(prev => [...prev, newOrder]);
     setCart([]); // Clear cart
+    
+    // Attempt to send email notification
+    sendOrderNotification(newOrder);
   };
 
   // Admin Handlers
@@ -132,6 +170,10 @@ const App: React.FC = () => {
 
   const handleDeleteProduct = (id: string) => {
     setProducts(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleUpdateOrder = (orderId: string, status: OrderStatus) => {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
   };
 
   // Review Handlers
@@ -154,9 +196,11 @@ const App: React.FC = () => {
     return (
       <AdminDashboard 
         products={products}
+        orders={orders}
         onAdd={handleAddProduct}
         onUpdate={handleUpdateProduct}
         onDelete={handleDeleteProduct}
+        onUpdateOrder={handleUpdateOrder}
         onClose={() => setView('shop')}
       />
     );
@@ -183,6 +227,7 @@ const App: React.FC = () => {
       <PaymentModal
         isOpen={isPaymentModalOpen}
         total={cartTotal}
+        user={user}
         onClose={() => setIsPaymentModalOpen(false)}
         onSuccess={handlePaymentSuccess}
       />

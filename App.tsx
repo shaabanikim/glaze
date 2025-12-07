@@ -46,6 +46,7 @@ const App: React.FC = () => {
   // Auth State
   const [user, setUser] = useState<User | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [authInitialView, setAuthInitialView] = useState<'LOGIN' | 'SIGNUP'>('LOGIN');
   const [isUserOrdersOpen, setIsUserOrdersOpen] = useState(false);
   const [view, setView] = useState<'shop' | 'admin'>('shop');
 
@@ -114,6 +115,7 @@ const App: React.FC = () => {
   const handleCheckout = () => {
     if (!user) {
       setIsCartOpen(false);
+      setAuthInitialView('LOGIN'); // Default to login if hitting checkout
       setIsLoginModalOpen(true);
       return;
     }
@@ -214,7 +216,14 @@ const App: React.FC = () => {
         cartCount={cartCount} 
         user={user}
         onOpenCart={() => setIsCartOpen(true)}
-        onLoginClick={() => setIsLoginModalOpen(true)}
+        onLoginClick={() => {
+            setAuthInitialView('LOGIN');
+            setIsLoginModalOpen(true);
+        }}
+        onSignupClick={() => {
+            setAuthInitialView('SIGNUP');
+            setIsLoginModalOpen(true);
+        }}
         onLogoutClick={handleLogout}
         onScrollToSection={scrollToSection}
         onNavigateToAdmin={() => setView('admin')}
@@ -223,6 +232,7 @@ const App: React.FC = () => {
 
       <LoginModal 
         isOpen={isLoginModalOpen} 
+        initialView={authInitialView}
         onClose={() => setIsLoginModalOpen(false)} 
         onLogin={handleLogin} 
       />

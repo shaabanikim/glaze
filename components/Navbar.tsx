@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Menu, X, Sparkles, LogIn, LogOut, LayoutDashboard, Package } from 'lucide-react';
+import { ShoppingBag, Menu, X, Sparkles, LogIn, LogOut, LayoutDashboard, Package, UserPlus } from 'lucide-react';
 import { APP_NAME } from '../constants';
 import { User } from '../types';
 
@@ -8,6 +8,7 @@ interface NavbarProps {
   user: User | null;
   onOpenCart: () => void;
   onLoginClick: () => void;
+  onSignupClick: () => void;
   onLogoutClick: () => void;
   onScrollToSection: (id: string) => void;
   onNavigateToAdmin?: () => void;
@@ -19,6 +20,7 @@ const Navbar: React.FC<NavbarProps> = ({
   user,
   onOpenCart, 
   onLoginClick,
+  onSignupClick,
   onLogoutClick,
   onScrollToSection,
   onNavigateToAdmin,
@@ -66,7 +68,7 @@ const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center space-x-2 md:space-x-4">
             
             {/* User Login/Profile */}
-            <div className="hidden md:block relative">
+            <div className="hidden md:flex items-center gap-3">
               {user ? (
                 <div className="relative">
                   <button 
@@ -125,13 +127,22 @@ const Navbar: React.FC<NavbarProps> = ({
                   )}
                 </div>
               ) : (
-                <button
-                  onClick={onLoginClick}
-                  className="flex items-center space-x-1 text-gray-600 hover:text-pink-600 px-3 py-2 text-sm font-medium transition-colors"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span>Log In</span>
-                </button>
+                <>
+                  <button
+                    onClick={onLoginClick}
+                    className="flex items-center space-x-1 text-gray-600 hover:text-pink-600 px-3 py-2 text-sm font-medium transition-colors"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Log In</span>
+                  </button>
+                  <button
+                    onClick={onSignupClick}
+                    className="flex items-center space-x-1 bg-black text-white hover:bg-gray-800 px-4 py-2 rounded-full text-sm font-medium transition-all shadow-sm"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Sign Up</span>
+                  </button>
+                </>
               )}
             </div>
 
@@ -218,15 +229,26 @@ const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={() => {
-                    onLoginClick();
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className="flex items-center w-full text-gray-600 hover:text-pink-600 px-3 py-2 rounded-md text-base font-medium"
-                >
-                  <LogIn className="w-4 h-4 mr-2" /> Log In
-                </button>
+                <div className="space-y-2 p-2">
+                  <button
+                    onClick={() => {
+                      onLoginClick();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex items-center w-full text-gray-600 hover:text-pink-600 px-3 py-2 rounded-md text-base font-medium"
+                  >
+                    <LogIn className="w-4 h-4 mr-2" /> Log In
+                  </button>
+                  <button
+                    onClick={() => {
+                      onSignupClick();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex items-center w-full bg-black text-white hover:bg-gray-800 px-3 py-2 rounded-lg text-base font-medium"
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" /> Sign Up
+                  </button>
+                </div>
               )}
             </div>
           </div>

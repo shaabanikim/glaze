@@ -5,6 +5,7 @@ import emailjs from '@emailjs/browser';
 
 interface LoginModalProps {
   isOpen: boolean;
+  initialView?: 'LOGIN' | 'SIGNUP';
   onClose: () => void;
   onLogin: (user: User) => void;
 }
@@ -25,8 +26,8 @@ const decodeJwt = (token: string) => {
   }
 };
 
-const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => {
-  const [view, setView] = useState<AuthView>('LOGIN');
+const LoginModal: React.FC<LoginModalProps> = ({ isOpen, initialView = 'LOGIN', onClose, onLogin }) => {
+  const [view, setView] = useState<AuthView>(initialView);
   const [isLoading, setIsLoading] = useState(false);
   
   // Form State
@@ -57,16 +58,18 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
     setGoogleError('');
     setSuccessMessage('');
     setIsConfiguring(false);
-    if (!isOpen) {
+    if (isOpen) {
+        // Set view based on prop when opening
+        setView(initialView);
+    } else {
         // Reset inputs on close
         setEmail('');
         setPassword('');
         setName('');
         setOtp('');
         setGeneratedOtp('');
-        setView('LOGIN');
     }
-  }, [isOpen]);
+  }, [isOpen, initialView]);
 
   // Clear errors/messages when view changes
   useEffect(() => {
